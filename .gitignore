@@ -8,4 +8,7 @@ data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 telegram/session/*.session-journal
+telegram/session/*.session
 *.log
+*.zip
+PACS_System_Portable.zip

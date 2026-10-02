@@ -409,9 +409,11 @@ function renderStudiesTable() {
             `;
             actionBtn = `<button class="btn btn-sm btn-action-download" disabled>🗜️ Siqilmoqda...</button>`;
         } else if (stage === 'UPLOADING_TG') {
+            const speedInfo = s.active_speed ? ` • ⚡ ${s.active_speed}` : '';
+            const tgText = progressText || `Telegramga: ${percent}%${speedInfo}`;
             statusBadge = `
                 <div class="progress-container">
-                    <span class="badge-status status-sending" style="font-size: 0.72rem;">📤 ${progressText || 'Telegramga: ' + percent + '%'}</span>
+                    <span class="badge-status status-sending" style="font-size: 0.72rem; font-weight: 600;" title="${tgText}">📤 ${tgText}</span>
                     <div class="progress-track"><div class="progress-fill tg-upload" style="width: ${percent}%;"></div></div>
                 </div>
             `;
@@ -492,13 +494,21 @@ async function checkActiveProgresses() {
                     study.active_stage = p.stage;
                     study.active_percent = p.percent;
                     study.active_text = p.text;
+                    study.active_speed = p.speed || '';
                 }
             } else if (p && p.stage === 'DONE') {
                 const study = allStudies.find(s => s.id === id);
-                if (study && study.telegram_status !== 'SENT') {
+                if (study) {
                     study.telegram_status = 'SENT';
                     study.active_stage = 'DONE';
                     study.has_local_copy = true;
+                }
+            } else if (p && p.stage === 'ERROR') {
+                const study = allStudies.find(s => s.id === id);
+                if (study) {
+                    study.telegram_status = 'FAILED';
+                    study.active_stage = 'ERROR';
+                    study.active_text = p.text || 'Xatolik';
                 }
             }
         });
@@ -506,7 +516,7 @@ async function checkActiveProgresses() {
         if (hasActiveTasks) {
             renderStudiesTable();
             if (!activeProgressPollTimer) {
-                activeProgressPollTimer = setInterval(checkActiveProgresses, 1200);
+                activeProgressPollTimer = setInterval(checkActiveProgresses, 800);
             }
         } else {
             if (activeProgressPollTimer) {
@@ -661,8 +671,9 @@ async function resendTelegram(id) {
                 // UI da darhol holatni o'zgartirish
                 if (study) {
                     study.active_stage = isCt ? 'DOWNLOADING_CT' : 'UPLOADING_TG';
-                    study.active_percent = 5;
-                    study.active_text = isCt ? 'KT dan olinmoqda...' : 'Telegramga yuklanmoqda...';
+                    study.active_percent = 1;
+                    study.active_text = isCt ? 'KT apparatidan olinmoqda...' : 'Telegram serveriga ulanmoqda... 0% • ⚡ 0.0 MB/s';
+                    study.active_speed = '0.0 MB/s';
                     renderStudiesTable();
                 }
 

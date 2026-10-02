@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sabadarmon MSKT — PACS & Arxiv Tizimi</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -12,13 +14,23 @@
         <!-- HEADER -->
         <header class="header">
             <div class="logo-section">
-                <div class="logo-icon">🏥</div>
+                <div class="logo-icon" style="background: transparent; padding: 0; display: flex; align-items: center; justify-content: center;">
+                    <img src="logo.png" alt="FrunzaDev" style="height: 48px; width: auto; object-fit: contain;">
+                </div>
                 <div>
                     <h1>Sabadarmon MSKT</h1>
                     <span class="subtitle">Avtomatlashtirilgan PACS va Telegram Arxivlash Tizimi</span>
                 </div>
             </div>
             <div class="status-badges">
+                <div class="badge" style="display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; padding: 4px 10px;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <span class="dot green"></span> Port: <strong>:8000</strong>
+                    </div>
+                    <div style="font-size: 0.65rem; color: #64748b; font-weight: 500; margin-top: 1px;">
+                        Huquqlar FrunzaDev jamoasi tomonidan himoyalangan
+                    </div>
+                </div>
                 <div class="badge" id="ct-status-badge">
                     <span class="dot yellow"></span> KT Apparati: <strong id="ct-status-text">Tekshirilmoqda...</strong>
                 </div>
@@ -294,6 +306,15 @@
             </div>
         </div>
     </div>
+
+    <!-- FOOTER -->
+    <footer style="margin-top: 35px; padding: 20px 10px; text-align: center; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 0.82rem;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 5px;">
+            <img src="logo.png" alt="FrunzaDev" style="height: 22px; width: auto; vertical-align: middle;">
+            <strong style="color: #1e293b;">Sabadarmon MSKT PACS & Worklist</strong> — Port: <strong>:8000</strong>
+        </div>
+        <div>Huquqlar FrunzaDev jamoasi tomonidan himoyalangan &copy; 2026</div>
+    </footer>
 
     <script src="app.js"></script>
 </body>

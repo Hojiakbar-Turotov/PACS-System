@@ -172,10 +172,12 @@ def get_studies():
             s["active_stage"] = prog.get("stage", "")
             s["active_percent"] = prog.get("percent", 0)
             s["active_text"] = prog.get("text", "")
+            s["active_speed"] = prog.get("speed", "")
         else:
             s["active_stage"] = s.get("progress_stage") or ""
             s["active_percent"] = s.get("progress_percent") or 0
             s["active_text"] = s.get("progress_text") or ""
+            s["active_speed"] = ""
 
     return rows
 
@@ -206,11 +208,13 @@ def resend_study_telegram(study_id: int, background_tasks: BackgroundTasks):
         
     zip_path = Path(study["archive_path"]) if study["archive_path"] else None
     if zip_path and zip_path.exists():
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE studies SET telegram_status = 'SENDING' WHERE id = ?", (study_id,))
-        conn.commit()
-        conn.close()
+        from core.database import DB_LOCK
+        with DB_LOCK:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE studies SET telegram_status = 'SENDING' WHERE id = ?", (study_id,))
+            conn.commit()
+            conn.close()
         
         def _send_bg():
             send_study_to_telegram(
@@ -228,11 +232,13 @@ def resend_study_telegram(study_id: int, background_tasks: BackgroundTasks):
     else:
         # Fayllar KT apparatida - C-MOVE orqali tortib olamiz
         log_event("INFO", f"Fayllar KT apparatida, C-MOVE orqali so'ralmoqda: {study['patient_name']} ({study['patient_id']})")
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE studies SET telegram_status = 'RETRIEVING' WHERE id = ?", (study_id,))
-        conn.commit()
-        conn.close()
+        from core.database import DB_LOCK
+        with DB_LOCK:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE studies SET telegram_status = 'RETRIEVING' WHERE id = ?", (study_id,))
+            conn.commit()
+            conn.close()
         
         background_tasks.add_task(retrieve_study_from_ct, study["study_instance_uid"])
         return {"status": "retrieving", "detail": "KT apparatidan tasvirlar yuklab olinmoqda va Telegramga uzatiladi"}

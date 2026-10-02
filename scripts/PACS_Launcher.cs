@@ -1,10 +1,8 @@
 using System;
 using System.IO;
 using System.Diagnostics;
-using System.Net.Sockets;
 using System.Threading;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -12,11 +10,28 @@ namespace SabadarmonPACS
 {
     static class Program
     {
-        private const string RUN_KEY = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        private const string APP_NAME = "SabadarmonPACS";
-        private const int SERVER_PORT = 8000;
+        private const string MUTEX_NAME = "SabadarmonPACSServerMutex_2026";
         private const string SERVER_URL = "http://localhost:8000";
-        private const string MUTEX_NAME = "Global\\SabadarmonPACSServerMutex_2026";
+
+        private static readonly object logLock = new object();
+        public static void SafeLog(string msg)
+        {
+            try
+            {
+                lock (logLock)
+                {
+                    string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "logs");
+                    if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    string path = Path.Combine(dir, "launcher.log");
+                    using (FileStream fs = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+                    using (StreamWriter sw = new StreamWriter(fs))
+                    {
+                        sw.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + msg);
+                    }
+                }
+            }
+            catch { }
+        }
 
         [STAThread]
         static void Main(string[] args)
@@ -24,17 +39,27 @@ namespace SabadarmonPACS
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            bool createdNew;
-            using (Mutex mutex = new Mutex(true, MUTEX_NAME, out createdNew))
+            try
             {
-                if (!createdNew)
+                bool createdNew;
+                using (Mutex mutex = new Mutex(true, MUTEX_NAME, out createdNew))
                 {
-                    // Dastur allaqachon fonda ishlamoqda, brauzerda panelni ochamiz
-                    OpenBrowser(SERVER_URL);
-                    return;
-                }
+                    SafeLog("[MAIN] Boshlandi. Args: " + string.Join(" ", args) + ", createdNew: " + createdNew);
 
-                Application.Run(new TrayApplicationContext(args));
+                    if (!createdNew)
+                    {
+                        SafeLog("[MAIN] Dastur allaqachon fonda ishlamoqda. Veb-panel ochilmoqda.");
+                        OpenBrowser(SERVER_URL);
+                        return;
+                    }
+
+                    TrayApp app = new TrayApp(args);
+                    Application.Run();
+                }
+            }
+            catch (Exception ex)
+            {
+                SafeLog("[MAIN_FATAL] " + ex.ToString());
             }
         }
 
@@ -51,11 +76,10 @@ namespace SabadarmonPACS
         }
     }
 
-    public class TrayApplicationContext : ApplicationContext
+    public class TrayApp
     {
         private const string RUN_KEY = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string APP_NAME = "SabadarmonPACS";
-        private const int SERVER_PORT = 8000;
         private const string SERVER_URL = "http://localhost:8000";
 
         private NotifyIcon trayIcon;
@@ -64,154 +88,146 @@ namespace SabadarmonPACS
         private string baseDir;
         private System.Windows.Forms.Timer healthTimer;
 
-        public TrayApplicationContext(string[] args)
+        public TrayApp(string[] args)
         {
-            baseDir = AppDomain.CurrentDomain.BaseDirectory;
-
-            bool isBackground = false;
-            foreach (string arg in args)
+            try
             {
-                if (arg.Equals("--background", StringComparison.OrdinalIgnoreCase) || arg.Equals("-b", StringComparison.OrdinalIgnoreCase))
+                baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+                bool isBackground = false;
+                foreach (string arg in args)
                 {
-                    isBackground = true;
+                    if (arg.Equals("--background", StringComparison.OrdinalIgnoreCase) || arg.Equals("-b", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isBackground = true;
+                    }
                 }
+
+                // 1. Windows avtomatik yuklanishiga qo'shish
+                EnsureStartupRegistered();
+
+                // 2. Tray Icon va menyusini yaratish
+                InitializeTray();
+
+                // 3. PACS Serverni ishga tushirish
+                StartServerProcess();
+
+                // 4. Sog'liq tekshiruvi (har 15s)
+                healthTimer = new System.Windows.Forms.Timer();
+                healthTimer.Interval = 15000;
+                healthTimer.Tick += (s, e) => CheckServerHealth();
+                healthTimer.Start();
+
+                // 5. Agar qo'lda ochilgan bo'lsa brauzerda panelni ochish
+                if (!isBackground)
+                {
+                    Program.OpenBrowser(SERVER_URL);
+                }
+
+                try
+                {
+                    trayIcon.ShowBalloonTip(3000, "Sabadarmon MSKT PACS", "PACS Server va GE CT monitoring orqa fonda faol.", ToolTipIcon.Info);
+                }
+                catch { }
+
+                Program.SafeLog("[TRAY] Muvaffaqiyatli ishga tushdi va faol.");
             }
-
-            // 1. Windows avtomatik ishga tushishini ta'minlash
-            EnsureStartupRegistered();
-
-            // 2. Tray Icon va menyusini yaratish
-            InitializeTray();
-
-            // 3. PACS Server jarayonini ishga tushirish
-            StartServerProcess();
-
-            // 4. Server sog'ligini kuzatish taymeri (har 10 soniyada)
-            healthTimer = new System.Windows.Forms.Timer();
-            healthTimer.Interval = 10000;
-            healthTimer.Tick += (s, e) => CheckServerHealth();
-            healthTimer.Start();
-
-            // 5. Agar qo'lda ochilgan bo'lsa, brauzerni avtomatik ochish
-            if (!isBackground)
+            catch (Exception ex)
             {
-                Program.OpenBrowser(SERVER_URL);
+                Program.SafeLog("[TRAY_ERROR] " + ex.ToString());
             }
-
-            // Tray bildirishnomasi
-            trayIcon.ShowBalloonTip(3000, "Sabadarmon MSKT PACS", "PACS Server va GE CT monitoring orqa fonda ishga tushdi (Port 8000).", ToolTipIcon.Info);
         }
 
         private void InitializeTray()
         {
-            contextMenu = new ContextMenuStrip();
-            contextMenu.Font = new Font("Segoe UI", 9.25f);
-
-            var titleItem = new ToolStripMenuItem("🏥 Sabadarmon MSKT PACS");
-            titleItem.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            titleItem.Enabled = false;
-            contextMenu.Items.Add(titleItem);
-
-            contextMenu.Items.Add(new ToolStripSeparator());
-
-            var openWebItem = new ToolStripMenuItem("🌐 Boshqaruv paneli (localhost:8000)", null, (s, e) => Program.OpenBrowser(SERVER_URL));
-            openWebItem.Font = new Font("Segoe UI", 9.25f, FontStyle.Bold);
-            contextMenu.Items.Add(openWebItem);
-
-            contextMenu.Items.Add(new ToolStripMenuItem("📋 Bugungi navbat (/list)", null, (s, e) => Program.OpenBrowser(SERVER_URL + "/list")));
-            contextMenu.Items.Add(new ToolStripMenuItem("⚙️ Sozlamalar", null, (s, e) => Program.OpenBrowser(SERVER_URL + "#settings")));
-
-            contextMenu.Items.Add(new ToolStripSeparator());
-
-            var restartItem = new ToolStripMenuItem("🔄 Serverni qayta ishga tushirish", null, (s, e) => RestartServer());
-            contextMenu.Items.Add(restartItem);
-
-            var autoStartItem = new ToolStripMenuItem("🖥️ Windows bilan birga ishga tushish");
-            autoStartItem.CheckOnClick = true;
-            autoStartItem.Checked = IsStartupRegistered();
-            autoStartItem.Click += (s, e) => ToggleStartup(autoStartItem.Checked);
-            contextMenu.Items.Add(autoStartItem);
-
-            contextMenu.Items.Add(new ToolStripSeparator());
-
-            var exitItem = new ToolStripMenuItem("❌ Chiqish va Dasturni to'xtatish", null, (s, e) => ExitApplication());
-            exitItem.ForeColor = Color.DarkRed;
-            contextMenu.Items.Add(exitItem);
-
-            trayIcon = new NotifyIcon();
-            trayIcon.Text = "Sabadarmon MSKT PACS (Port: 8000)";
-            trayIcon.Icon = GenerateAppIcon();
-            trayIcon.ContextMenuStrip = contextMenu;
-            trayIcon.Visible = true;
-            trayIcon.DoubleClick += (s, e) => Program.OpenBrowser(SERVER_URL);
-        }
-
-        private Icon GenerateAppIcon()
-        {
             try
             {
-                // Professional ko'k fonli tibbiy xoch ikonkasini GDI+ da chizamiz
-                using (Bitmap bmp = new Bitmap(32, 32))
-                using (Graphics g = Graphics.FromImage(bmp))
+                contextMenu = new ContextMenuStrip();
+
+                var titleItem = new ToolStripMenuItem("Sabadarmon MSKT PACS (:8000)");
+                titleItem.Enabled = false;
+                contextMenu.Items.Add(titleItem);
+
+                var copyrightItem = new ToolStripMenuItem("Huquqlar FrunzaDev tomonidan himoyalangan");
+                copyrightItem.Enabled = false;
+                copyrightItem.Font = new Font(contextMenu.Font.FontFamily, 7.5f, FontStyle.Italic);
+                contextMenu.Items.Add(copyrightItem);
+
+                contextMenu.Items.Add(new ToolStripSeparator());
+
+                var openWebItem = new ToolStripMenuItem("Boshqaruv paneli (Web)", null, (s, e) => Program.OpenBrowser(SERVER_URL));
+                contextMenu.Items.Add(openWebItem);
+
+                contextMenu.Items.Add(new ToolStripMenuItem("Bugungi navbat (/list)", null, (s, e) => Program.OpenBrowser(SERVER_URL + "/list")));
+                contextMenu.Items.Add(new ToolStripMenuItem("Sozlamalar (Settings)", null, (s, e) => Program.OpenBrowser(SERVER_URL + "#settings")));
+
+                contextMenu.Items.Add(new ToolStripSeparator());
+
+                var restartItem = new ToolStripMenuItem("Serverni qayta ishga tushirish", null, (s, e) => RestartServer());
+                contextMenu.Items.Add(restartItem);
+
+                var autoStartItem = new ToolStripMenuItem("Windows bilan birga ishga tushish");
+                autoStartItem.CheckOnClick = true;
+                autoStartItem.Checked = IsStartupRegistered();
+                autoStartItem.Click += (s, e) => ToggleStartup(autoStartItem.Checked);
+                contextMenu.Items.Add(autoStartItem);
+
+                contextMenu.Items.Add(new ToolStripSeparator());
+
+                var exitItem = new ToolStripMenuItem("Chiqish va Dasturni to'xtatish", null, (s, e) => ExitApplication());
+                contextMenu.Items.Add(exitItem);
+
+                trayIcon = new NotifyIcon();
+                trayIcon.Text = "Sabadarmon PACS (:8000) - FrunzaDev";
+                
+                string iconPath = Path.Combine(baseDir, "assets", "app.ico");
+                if (File.Exists(iconPath))
                 {
-                    g.SmoothingMode = SmoothingMode.AntiAlias;
-                    g.Clear(Color.Transparent);
-
-                    // Ko'k doira fon
-                    using (Brush bgBrush = new SolidBrush(Color.FromArgb(14, 116, 144))) // Tibbiy to'q firuza/ko'k
-                    {
-                        g.FillEllipse(bgBrush, 1, 1, 30, 30);
-                    }
-
-                    // Cheti uchun yengil hoshiya
-                    using (Pen pen = new Pen(Color.FromArgb(6, 182, 212), 2))
-                    {
-                        g.DrawEllipse(pen, 2, 2, 28, 28);
-                    }
-
-                    // Oq rangli tibbiy xoch
-                    using (Brush crossBrush = new SolidBrush(Color.White))
-                    {
-                        // Vertikal chiziq
-                        g.FillRectangle(crossBrush, 13, 7, 6, 18);
-                        // Gorizontal chiziq
-                        g.FillRectangle(crossBrush, 7, 13, 18, 6);
-                    }
-
-                    IntPtr hIcon = bmp.GetHicon();
-                    return Icon.FromHandle(hIcon);
+                    try { trayIcon.Icon = new Icon(iconPath); }
+                    catch { trayIcon.Icon = SystemIcons.Application; }
                 }
+                else
+                {
+                    trayIcon.Icon = SystemIcons.Application;
+                }
+
+                trayIcon.ContextMenuStrip = contextMenu;
+                trayIcon.Visible = true;
+                trayIcon.DoubleClick += (s, e) => Program.OpenBrowser(SERVER_URL);
             }
-            catch
+            catch (Exception ex)
             {
-                return SystemIcons.Application;
+                Program.SafeLog("[TRAY_INIT_ERROR] " + ex.ToString());
             }
         }
 
         private void StartServerProcess()
         {
-            if (IsPortOpen("127.0.0.1", SERVER_PORT, 400))
-            {
-                return; // Server allaqachon ishlayapti
-            }
-
-            string pythonPath = FindPython(baseDir);
-            string scriptPath = Path.Combine(baseDir, "run_server.py");
-
-            if (!File.Exists(scriptPath))
-            {
-                MessageBox.Show("run_server.py topilmadi: " + scriptPath, "PACS Xatolik", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(pythonPath) || !File.Exists(pythonPath))
-            {
-                MessageBox.Show("Python topilmadi! C:\\Python311 o'rnatilganligini tekshiring.", "PACS Xatolik", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
             try
             {
+                if (serverProcess != null && !serverProcess.HasExited)
+                {
+                    Program.SafeLog("[SERVER] Server allaqachon faol (PID: " + serverProcess.Id + ")");
+                    return;
+                }
+
+                string pythonPath = FindPython(baseDir);
+                string scriptPath = Path.Combine(baseDir, "run_server.py");
+
+                if (!File.Exists(scriptPath))
+                {
+                    Program.SafeLog("[SERVER_ERROR] run_server.py topilmadi: " + scriptPath);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(pythonPath) || !File.Exists(pythonPath))
+                {
+                    Program.SafeLog("[SERVER_ERROR] Python topilmadi: " + pythonPath);
+                    return;
+                }
+
+                Program.SafeLog("[SERVER] Ishga tushirilmoqda: " + pythonPath + " " + scriptPath);
+
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = pythonPath;
                 psi.Arguments = "\"" + scriptPath + "\"";
@@ -221,31 +237,25 @@ namespace SabadarmonPACS
                 psi.UseShellExecute = false;
 
                 serverProcess = Process.Start(psi);
-
-                // Port ochilishini kutamiz (5 soniya)
-                for (int i = 0; i < 25; i++)
-                {
-                    Thread.Sleep(200);
-                    if (IsPortOpen("127.0.0.1", SERVER_PORT, 200))
-                    {
-                        break;
-                    }
-                }
+                Program.SafeLog("[SERVER] Ishga tushdi, PID: " + (serverProcess != null ? serverProcess.Id.ToString() : "null"));
             }
             catch (Exception ex)
             {
-                MessageBox.Show("PACS serverni ishga tushirishda xatolik: " + ex.Message, "PACS Xatolik", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Program.SafeLog("[SERVER_ERROR] " + ex.ToString());
             }
         }
 
         private void CheckServerHealth()
         {
-            bool online = IsPortOpen("127.0.0.1", SERVER_PORT, 400);
-            if (!online)
+            try
             {
-                // Agar server to'xtab qolgan bo'lsa, qayta tiklaymiz
-                StartServerProcess();
+                if (serverProcess == null || serverProcess.HasExited)
+                {
+                    Program.SafeLog("[HEALTH] Server to'xtab qolgan, qayta ishga tushirilmoqda...");
+                    StartServerProcess();
+                }
             }
+            catch { }
         }
 
         private void RestartServer()
@@ -253,7 +263,7 @@ namespace SabadarmonPACS
             StopServerProcess();
             Thread.Sleep(1000);
             StartServerProcess();
-            trayIcon.ShowBalloonTip(2000, "Sabadarmon PACS", "Server qayta ishga tushirildi.", ToolTipIcon.Info);
+            try { trayIcon.ShowBalloonTip(2000, "Sabadarmon PACS", "Server qayta ishga tushirildi.", ToolTipIcon.Info); } catch { }
         }
 
         private void StopServerProcess()
@@ -268,10 +278,8 @@ namespace SabadarmonPACS
             }
             catch { }
 
-            // run_server.py ni ishlatayotgan boshqa python jarayonlarini ham xavfsiz to'xtatamiz
             try
             {
-                string scriptPath = Path.Combine(baseDir, "run_server.py");
                 ProcessStartInfo wmiPsi = new ProcessStartInfo("powershell", 
                     "-NoProfile -Command \"Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*run_server.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"")
                 {
@@ -295,6 +303,8 @@ namespace SabadarmonPACS
 
             if (dr == DialogResult.Yes)
             {
+                Program.SafeLog("[EXIT] Foydalanuvchi chiqishni tanladi.");
+
                 if (healthTimer != null)
                 {
                     healthTimer.Stop();
@@ -313,41 +323,22 @@ namespace SabadarmonPACS
             }
         }
 
-        private bool IsPortOpen(string host, int port, int timeoutMs)
-        {
-            try
-            {
-                using (TcpClient client = new TcpClient())
-                {
-                    var result = client.BeginConnect(host, port, null, null);
-                    bool success = result.AsyncWaitHandle.WaitOne(timeoutMs);
-                    if (!success) return false;
-                    client.EndConnect(result);
-                    return true;
-                }
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private string FindPython(string baseDir)
         {
-            string localPythonw = Path.Combine(baseDir, "python", "pythonw.exe");
-            if (File.Exists(localPythonw)) return localPythonw;
-
-            string py311w = @"C:\Python311\pythonw.exe";
-            if (File.Exists(py311w)) return py311w;
+            string localPython = Path.Combine(baseDir, "python", "python.exe");
+            if (File.Exists(localPython)) return localPython;
 
             string py311 = @"C:\Python311\python.exe";
             if (File.Exists(py311)) return py311;
 
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string userPyw = Path.Combine(localAppData, @"Programs\Python\Python311\pythonw.exe");
-            if (File.Exists(userPyw)) return userPyw;
+            string py311w = @"C:\Python311\pythonw.exe";
+            if (File.Exists(py311w)) return py311w;
 
-            return "pythonw.exe";
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string userPy = Path.Combine(localAppData, @"Programs\Python\Python311\python.exe");
+            if (File.Exists(userPy)) return userPy;
+
+            return "python.exe";
         }
 
         private bool IsStartupRegistered()

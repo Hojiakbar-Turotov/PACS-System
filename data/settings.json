@@ -1,0 +1,22 @@
+{
+    "pacs_host": "0.0.0.0",
+    "pacs_port": 11112,
+    "pacs_aet": "RADIANT",
+    "ct_host": "192.168.10.250",
+    "ct_port": 4006,
+    "ct_aet": "CT01",
+    "web_host": "0.0.0.0",
+    "web_port": 8000,
+    "telegram_bot_token": "8901578611:AAFwH648xgPAfnw5Oh_ScBVuzVr94-JYkJI",
+    "telegram_channel_id": "-1004295879936",
+    "telegram_api_id": 2040,
+    "telegram_api_hash": "b18441a1ff607e10a989891a5462e627",
+    "radiant_exe": "C:\\App\\RadiAntViewer\\RadiAntViewer.exe",
+    "study_inactivity_timeout": 15,
+    "retention_days": 30,
+    "auto_archive_enabled": true,
+    "new_study_poll_interval": 60,
+    "recon_stability_checks": 3,
+    "deep_scan_interval": 10800,
+    "batch_concurrency": 10
+}

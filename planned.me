@@ -304,4 +304,22 @@ D:\PACS\
    - "🖥️ Windows bilan birga ishga tushish" (Avto-start)
    - "❌ Chiqish va Dasturni to'xtatish" (Barcha orqa fon jarayonlarini to'liq to'xtatadi).
 
+### 7.8. FrunzaDev Brendingi, Jonli Yuklash Tezligi va SQLite Barqarorligi
+1. **FrunzaDev Logotipi va Favicon:**
+   - Foydalanuvchi taqdim etgan yashil-ko'k barg va dasturlash elementlari aks etgan rasmiy FrunzaDev logotipi `d:\PACS\web\logo.png`, `d:\PACS\web\favicon.ico` va `d:\PACS\assets\app.ico` ko'rinishida saqlandi.
+   - `PACS_System.exe` fayli va Windows Tray ilovasi ushbu logotip bilan kompilyatsiya qilindi.
+   - Veb-panel sarlavhasi (Header) va quyi qismi (Footer)da FrunzaDev logotipi joylashtirildi.
+2. **Port 8000 ostida Mualliflik Huquqi:**
+   - Veb-panelda `:8000` porti ostiga hamda sahifa tagida (Footer) rasmiy bildirishnoma qo'shildi:
+     *"Huquqlar FrunzaDev jamoasi tomonidan himoyalangan &copy; 2026"*.
+   - Tray menyusida ham port va mualliflik yozuvi aks ettirildi.
+3. **Telegramga Jonli Yuklash Tezligi (MB/s) va Holat:**
+   - Yuklash jarayonida har 0.4 soniyada yuklangan baytlar hisoblanib, aniq tezlik (`⚡ X.X MB/s`), foiz (`%`) va yuklangan hajm (`XX/YY MB`) jonli ko'rsatiladi.
+   - Dastlabki ulanish vaqtida darhol *"Telegram serveriga ulanmoqda... 0% • ⚡ 0.0 MB/s"* holati ko'rinadi.
+4. **SQLite "database is locked" Muammosini Hal Qilish:**
+   - Telethon bot mijozlari diskdagi umumiy `.session` faylida qulflanib qolmasligi uchun xotirada ishlovchi `MemorySession()` ga o'tkazildi.
+   - `core/database.py` da global qayta kiruvchi qulf (`DB_LOCK`) va xavfsiz tranzaksiya boshqaruvi joriy qilindi.
+   - SQLite `PRAGMA busy_timeout=60000`, `journal_mode=WAL` va `synchronous=NORMAL` sozlamalari bilan bir vaqtda bir nechta oqimlar xavfsiz ishlaydigan qilindi.
+
+
 

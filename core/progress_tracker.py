@@ -129,20 +129,22 @@ def update_progress(study_id: int, stage: str, percent: int, text: str, current:
 
     # DB ga faqat davriy (throttled) yozish - SQLite qulflanishini oldini oladi
     if should_save:
-        try:
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE studies SET
-                    progress_stage = ?,
-                    progress_percent = ?,
-                    progress_text = ?
-                WHERE id = ?
-            """, (stage, percent, text, study_id))
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
+        from core.database import DB_LOCK
+        with DB_LOCK:
+            try:
+                conn = get_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE studies SET
+                        progress_stage = ?,
+                        progress_percent = ?,
+                        progress_text = ?
+                    WHERE id = ?
+                """, (stage, percent, text, study_id))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
 
 def mark_completed(study_id: int, success: bool = True, error_msg: str = ""):
     stage = "DONE" if success else "ERROR"

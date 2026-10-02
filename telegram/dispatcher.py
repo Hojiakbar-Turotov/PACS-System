@@ -2,25 +2,27 @@ import os
 import time
 import asyncio
 import logging
-from pathlib import Path
 import concurrent.futures
+from pathlib import Path
+from typing import Optional
+
 import requests
 from telethon import TelegramClient
+from telethon.sessions import MemorySession
+from FastTelethonhelper import upload_file as fast_upload_file
 
 from core.config import (
-    TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
-    TELEGRAM_API_ID, TELEGRAM_API_HASH, BASE_DIR
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHANNEL_ID,
+    TELEGRAM_API_ID,
+    TELEGRAM_API_HASH,
 )
-from core.database import get_connection, log_event
+from core.database import get_connection, log_event, DB_LOCK
 
 logger = logging.getLogger("TELEGRAM_DISPATCHER")
 
-SESSION_DIR = BASE_DIR / "telegram" / "session"
-SESSION_DIR.mkdir(parents=True, exist_ok=True)
-SESSION_FILE = SESSION_DIR / "bot_session"
-
-def format_uzbek_date(date_str) -> str:
-    """Sanani 02-oktabr 2026 formatiga o'tkazish"""
+def format_uzbek_date(date_str: str) -> str:
+    """YYYYMMDD -> DD-oy YYYY (Masalan: 30-sentabr 2026)"""
     if not date_str:
         return ""
     months = {
@@ -60,11 +62,9 @@ def build_caption(patient_name: str, patient_id: str, study_date: str, study_des
             
     return "\n".join(lines)
 
-from FastTelethonhelper import upload_file as fast_upload_file
-
 async def _send_mtproto_async(zip_path: Path, caption_text: str, study_id: int = None) -> int:
-    """Telethon MTProto + FastTelethon parallel uploader orqali maksimal tezlikda yuborish"""
-    client = TelegramClient(str(SESSION_FILE), TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    """Telethon MTProto + FastTelethon parallel uploader orqali maksimal tezlikda yuborish (MemorySession)"""
+    client = TelegramClient(MemorySession(), TELEGRAM_API_ID, TELEGRAM_API_HASH)
     await client.start(bot_token=TELEGRAM_BOT_TOKEN)
     try:
         channel_peer = int(TELEGRAM_CHANNEL_ID)
@@ -79,16 +79,18 @@ async def _send_mtproto_async(zip_path: Path, caption_text: str, study_id: int =
                 return
             now_t = time.time()
             dt = now_t - last_time[0]
-            if dt >= 0.5 or current == total:
+            if dt >= 0.4 or current == total:
                 d_bytes = current - last_bytes[0]
-                speed_mb_s[0] = round((d_bytes / (1024 * 1024)) / max(dt, 0.001), 1)
+                if dt > 0:
+                    speed_mb_s[0] = round((d_bytes / (1024 * 1024)) / dt, 1)
                 last_time[0] = now_t
                 last_bytes[0] = current
 
             pct = int((current / total) * 100)
             cur_mb = round(current / (1024 * 1024), 1)
             tot_mb = round(total / (1024 * 1024), 1)
-            sp_str = f" • {speed_mb_s[0]} MB/s" if speed_mb_s[0] > 0 else ""
+            speed_val = speed_mb_s[0]
+            sp_str = f" • ⚡ {speed_val} MB/s" if speed_val > 0 else " • ⚡ 0.0 MB/s"
             
             if study_id:
                 try:
@@ -97,10 +99,10 @@ async def _send_mtproto_async(zip_path: Path, caption_text: str, study_id: int =
                         study_id=study_id,
                         stage="UPLOADING_TG",
                         percent=pct,
-                        text=f"Telegramga yuklanmoqda: {pct}% ({cur_mb}/{tot_mb} MB){sp_str}",
+                        text=f"Telegramga: {pct}% ({cur_mb}/{tot_mb} MB){sp_str}",
                         current=current,
                         total=total,
-                        speed=f"{speed_mb_s[0]} MB/s"
+                        speed=f"{speed_val} MB/s"
                     )
                 except Exception:
                     pass
@@ -110,22 +112,32 @@ async def _send_mtproto_async(zip_path: Path, caption_text: str, study_id: int =
                 log_event("MONITOR", f"⚡ Tezkor yuklanmoqda: {cur_mb}/{tot_mb} MB ({pct}%){sp_str}")
                 print(f"[FAST TELEGRAM] {zip_path.name}: {cur_mb}/{tot_mb} MB ({pct}%){sp_str}")
 
-        # Ko'p oqimli parallel MTProto yuklash (5-10 barobar tezroq)
-        with open(str(zip_path), 'rb') as f:
-            input_file = await fast_upload_file(
-                client=client,
-                file=f,
-                name=zip_path.name,
+        # 1-usul: FastTelethon parallel yuklash
+        try:
+            with open(str(zip_path), 'rb') as f:
+                input_file = await fast_upload_file(
+                    client=client,
+                    file=f,
+                    name=zip_path.name,
+                    progress_callback=progress_cb
+                )
+            msg = await client.send_file(
+                channel_peer,
+                input_file,
+                caption=caption_text,
+                force_document=True
+            )
+            return msg.id
+        except Exception as e_fast:
+            logger.warning(f"FastTelethon xatoligi: {e_fast}, standart Telethon yuklashga o'tilmoqda...")
+            msg = await client.send_file(
+                channel_peer,
+                str(zip_path),
+                caption=caption_text,
+                force_document=True,
                 progress_callback=progress_cb
             )
-
-        msg = await client.send_file(
-            channel_peer,
-            input_file,
-            caption=caption_text,
-            force_document=True
-        )
-        return msg.id
+            return msg.id
     finally:
         await client.disconnect()
 
@@ -138,15 +150,13 @@ def send_file_mtproto(zip_path: Path, caption_text: str, study_id: int = None) -
 def send_file_bot_api(zip_path: Path, caption_text: str) -> int:
     """Standart Telegram Bot API (fayl hajmi 45 MB dan kichik bo'lganda zahira sifatida)"""
     url_doc = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-    with open(str(zip_path), 'rb') as zf:
-        res = requests.post(
-            url_doc,
-            data={'chat_id': TELEGRAM_CHANNEL_ID, 'caption': caption_text},
-            files={'document': zf},
-            timeout=300
-        )
+    with open(str(zip_path), 'rb') as f:
+        files = {'document': (zip_path.name, f, 'application/zip')}
+        data = {'chat_id': TELEGRAM_CHANNEL_ID, 'caption': caption_text}
+        res = requests.post(url_doc, data=data, files=files, timeout=180)
+        
     if res.status_code == 200:
-        return res.json().get("result", {}).get("message_id")
+        return res.json().get('result', {}).get('message_id', 0)
     raise RuntimeError(f"Bot API error: {res.text}")
 
 def send_study_to_telegram(
@@ -162,12 +172,28 @@ def send_study_to_telegram(
 ) -> bool:
     """Bemor tekshiruv ZIP arxivini Telegram kanaliga yagona fayl sifatida yuborish"""
     try:
+        # Boshlang'ich holatni darhol xabar qilish
+        if study_id:
+            try:
+                from core.progress_tracker import update_progress
+                update_progress(
+                    study_id=study_id,
+                    stage="UPLOADING_TG",
+                    percent=1,
+                    text="Telegram serveriga ulanmoqda... 0% • ⚡ 0.0 MB/s",
+                    speed="0.0 MB/s",
+                    force_db=True
+                )
+            except Exception:
+                pass
+
         # 1. Takrorlanishni tekshirish
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, instances_count, last_sent_instances, telegram_status FROM studies WHERE id = ?", (study_id,))
-        row = cursor.fetchone()
-        conn.close()
+        with DB_LOCK:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, instances_count, last_sent_instances, telegram_status FROM studies WHERE id = ?", (study_id,))
+            row = cursor.fetchone()
+            conn.close()
 
         if row and not force:
             last_sent = row["last_sent_instances"] or 0
@@ -209,18 +235,19 @@ def send_study_to_telegram(
                 raise e_mtproto
 
         # 4. Bazani yangilash
-        conn = get_connection()
-        conn.execute("""
-            UPDATE studies 
-            SET telegram_status = 'SENT',
-                telegram_message_id = ?,
-                telegram_error = NULL,
-                last_sent_instances = ?,
-                instances_count = ?
-            WHERE id = ?
-        """, (message_id, slices_count, slices_count, study_id))
-        conn.commit()
-        conn.close()
+        with DB_LOCK:
+            conn = get_connection()
+            conn.execute("""
+                UPDATE studies 
+                SET telegram_status = 'SENT',
+                    telegram_message_id = ?,
+                    telegram_error = NULL,
+                    last_sent_instances = ?,
+                    instances_count = ?
+                WHERE id = ?
+            """, (message_id, slices_count, slices_count, study_id))
+            conn.commit()
+            conn.close()
 
         try:
             from core.progress_tracker import mark_completed
@@ -240,14 +267,15 @@ def send_study_to_telegram(
         except Exception:
             pass
         try:
-            conn = get_connection()
-            conn.execute("""
-                UPDATE studies 
-                SET telegram_status = 'FAILED', telegram_error = ?
-                WHERE id = ?
-            """, (str(e), study_id))
-            conn.commit()
-            conn.close()
+            with DB_LOCK:
+                conn = get_connection()
+                conn.execute("""
+                    UPDATE studies 
+                    SET telegram_status = 'FAILED', telegram_error = ?
+                    WHERE id = ?
+                """, (str(e), study_id))
+                conn.commit()
+                conn.close()
         except Exception:
             pass
         return False
