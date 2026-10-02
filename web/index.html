@@ -136,14 +136,14 @@
                         <div style="display: flex; align-items: center; gap: 6px;">
                             <span style="font-weight: 600; color: #475569;">📅 Sana:</span>
                             <select id="filter-date-preset" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0;" onchange="handleDatePresetChange(this.value)">
+                                <option value="TODAY" selected>Bugun</option>
                                 <option value="ALL">Barcha sanalar</option>
-                                <option value="TODAY">Bugun</option>
                                 <option value="YESTERDAY">Kecha</option>
                                 <option value="LAST_7_DAYS">Oxirgi 7 kun</option>
                                 <option value="THIS_MONTH">Shu oy</option>
                                 <option value="CUSTOM">Aniq sana...</option>
                             </select>
-                            <input type="date" id="filter-date-custom" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0; display: none;" onchange="applyStudyFilters()">
+                            <input type="date" id="filter-date-custom" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0; display: none;" onchange="handleCustomDateChange(this.value)">
                         </div>
 
                         <div style="display: flex; align-items: center; gap: 6px;">
@@ -225,7 +225,7 @@
                                 <th class="sortable-th" id="th-col-QUEUE_ORDER" onclick="handleColumnSort('QUEUE_ORDER')" title="Jarayon va navbat tartibi bo'yicha saralash (#1, #2... oldinda)">
                                     Telegram Holati & Jarayon <span class="sort-icon" id="sort-icon-QUEUE_ORDER">⇅</span>
                                 </th>
-                                <th style="min-width: 170px;">Amallar</th>
+                                <th style="min-width: 190px;">Amallar</th>
                             </tr>
                         </thead>
                         <tbody id="studies-tbody">

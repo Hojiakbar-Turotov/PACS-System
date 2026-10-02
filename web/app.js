@@ -158,11 +158,69 @@ function toggleSelectAllStudies(masterCheckbox) {
     updateSelectedCount();
 }
 
-let currentDatePreset = 'ALL';
+let currentDatePreset = localStorage.getItem('pacs_date_preset') || 'TODAY';
 let currentExamFilter = 'ALL';
-let currentSortBy = 'DATE_DESC';
+let currentSortBy = localStorage.getItem('pacs_sort_by') || 'DATE_DESC';
 let currentSortColumn = 'DATE';
 let currentSortDirection = 'DESC'; // 'ASC' yoki 'DESC'
+
+// Boshlang'ich saralash sozlamasini o'qish
+if (currentSortBy.includes('_')) {
+    const lastUnderscore = currentSortBy.lastIndexOf('_');
+    const dir = currentSortBy.substring(lastUnderscore + 1);
+    const col = currentSortBy.substring(0, lastUnderscore);
+    if (dir === 'ASC' || dir === 'DESC') {
+        currentSortColumn = col;
+        currentSortDirection = dir;
+    }
+}
+
+// Foydalanuvchi tanlagan sanasi, saralashi va sahifa hajmini tiklash (Preferences Restore)
+function initPreferences() {
+    // 1. Sana filtri sozlamasini tiklash
+    const savedDatePreset = localStorage.getItem('pacs_date_preset') || 'TODAY';
+    currentDatePreset = savedDatePreset;
+    const datePresetEl = document.getElementById('filter-date-preset');
+    if (datePresetEl) {
+        datePresetEl.value = currentDatePreset;
+    }
+    const customDateInput = document.getElementById('filter-date-custom');
+    if (customDateInput) {
+        if (currentDatePreset === 'CUSTOM') {
+            customDateInput.style.display = 'inline-block';
+            customDateInput.value = localStorage.getItem('pacs_date_custom') || '';
+        } else {
+            customDateInput.style.display = 'none';
+        }
+    }
+
+    // 2. Sahifa hajmi (Page Size) sozlamasini tiklash
+    const savedPageSize = localStorage.getItem('pacs_page_size');
+    if (savedPageSize) {
+        studyPageSize = parseInt(savedPageSize, 10) || 50;
+        const selTop = document.getElementById('select-page-size-top');
+        if (selTop) selTop.value = String(studyPageSize);
+        const selBtm = document.getElementById('select-page-size-bottom');
+        if (selBtm) selBtm.value = String(studyPageSize);
+    }
+
+    // 3. Saralash sozlamasini tiklash
+    const savedSort = localStorage.getItem('pacs_sort_by');
+    if (savedSort) {
+        currentSortBy = savedSort;
+        if (savedSort.includes('_')) {
+            const lastUnderscore = savedSort.lastIndexOf('_');
+            const dir = savedSort.substring(lastUnderscore + 1);
+            const col = savedSort.substring(0, lastUnderscore);
+            if (dir === 'ASC' || dir === 'DESC') {
+                currentSortColumn = col;
+                currentSortDirection = dir;
+            }
+        }
+        const sortSelect = document.getElementById('filter-sort-by');
+        if (sortSelect) sortSelect.value = savedSort;
+    }
+}
 
 // Har bir bemorning jarayon va navbat ustuvorlik ballini hisoblash
 function getStudyQueueScore(s) {
@@ -241,6 +299,7 @@ function handleColumnSort(colKey) {
     }
 
     currentSortBy = `${currentSortColumn}_${currentSortDirection}`;
+    localStorage.setItem('pacs_sort_by', currentSortBy);
 
     // Select dropdownni yangilash
     const sortSelect = document.getElementById('filter-sort-by');
@@ -276,10 +335,24 @@ function populateExamFilterOptions() {
 
 function handleDatePresetChange(val) {
     currentDatePreset = val;
+    localStorage.setItem('pacs_date_preset', val);
     const customInput = document.getElementById('filter-date-custom');
     if (customInput) {
         customInput.style.display = (val === 'CUSTOM') ? 'inline-block' : 'none';
-        if (val !== 'CUSTOM') customInput.value = '';
+        if (val !== 'CUSTOM') {
+            customInput.value = '';
+            localStorage.removeItem('pacs_date_custom');
+        }
+    }
+    currentStudyPage = 1;
+    applyStudyFilters();
+}
+
+function handleCustomDateChange(val) {
+    if (val) {
+        localStorage.setItem('pacs_date_custom', val);
+    } else {
+        localStorage.removeItem('pacs_date_custom');
     }
     currentStudyPage = 1;
     applyStudyFilters();
@@ -287,6 +360,7 @@ function handleDatePresetChange(val) {
 
 function handleSortChange(val) {
     currentSortBy = val;
+    localStorage.setItem('pacs_sort_by', currentSortBy);
     if (val.includes('_')) {
         const lastUnderscore = val.lastIndexOf('_');
         const dir = val.substring(lastUnderscore + 1);
@@ -310,10 +384,13 @@ function resetAllFilters() {
     currentSearchQuery = '';
     currentStudyFilter = 'ALL';
     currentDatePreset = 'ALL';
+    localStorage.setItem('pacs_date_preset', 'ALL');
+    localStorage.removeItem('pacs_date_custom');
     currentExamFilter = 'ALL';
     currentSortBy = 'DATE_DESC';
     currentSortColumn = 'DATE';
     currentSortDirection = 'DESC';
+    localStorage.setItem('pacs_sort_by', 'DATE_DESC');
 
     const searchInput = document.getElementById('study-search-input');
     if (searchInput) searchInput.value = '';
@@ -396,15 +473,20 @@ function applyStudyFilters() {
     const examSelect = document.getElementById('filter-exam-select');
     const selectedExam = examSelect ? examSelect.value : 'ALL';
     const customDateInput = document.getElementById('filter-date-custom');
-    const customDateVal = customDateInput ? customDateInput.value.replace(/-/g, '') : '';
+    const customDateVal = customDateInput && customDateInput.value ? customDateInput.value.replace(/-/g, '') : (localStorage.getItem('pacs_date_custom') || '').replace(/-/g, '');
 
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const yest = new Date(now.getTime() - 86400000);
-    const yesterdayStr = yest.toISOString().slice(0, 10).replace(/-/g, '');
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10).replace(/-/g, '');
-    const thisMonthPrefix = now.toISOString().slice(0, 7).replace(/-/g, '');
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}${m}${d}`;
+    const thisMonthPrefix = `${y}${m}`;
+
+    const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yesterdayStr = `${yest.getFullYear()}${String(yest.getMonth() + 1).padStart(2, '0')}${String(yest.getDate()).padStart(2, '0')}`;
+
+    const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const sevenDaysAgoStr = `${sevenDaysAgo.getFullYear()}${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}${String(sevenDaysAgo.getDate()).padStart(2, '0')}`;
 
     filteredStudies = allStudies.filter(s => {
         // Status pill filter
@@ -533,6 +615,7 @@ function applyStudyFilters() {
 
 function changePageSize(newSize) {
     studyPageSize = parseInt(newSize) || 50;
+    localStorage.setItem('pacs_page_size', String(studyPageSize));
     currentStudyPage = 1;
     
     // Ikkala selektorni sinxronlash
@@ -826,9 +909,11 @@ function renderStudiesTable() {
             <td><strong>${s.instances_count}</strong> kadr</td>
             <td>${storageBadge}</td>
             <td id="status-cell-${s.id}">${statusBadge}</td>
-            <td style="display: flex; gap: 6px; align-items: center;" id="action-cell-${s.id}">
-                ${s.has_local_copy ? `<button class="btn btn-sm btn-action-view" onclick="openInRadiAnt(${s.id})" title="RadiAnt dasturida ochish">🔍 RadiAnt</button>` : ''}
-                ${actionBtn}
+            <td id="action-cell-${s.id}">
+                <div class="action-cell-wrapper">
+                    ${s.has_local_copy ? `<button class="btn btn-sm btn-action-view" onclick="openInRadiAnt(${s.id})" title="RadiAnt dasturida ochish">🔍 RadiAnt</button>` : ''}
+                    ${actionBtn}
+                </div>
             </td>
         </tr>
         `;
@@ -1485,6 +1570,7 @@ async function checkSystemStatus() {
 
 // Boshlang'ich yuklash
 document.addEventListener('DOMContentLoaded', () => {
+    initPreferences();
     checkSystemStatus();
     loadStudies();
     loadLogs();

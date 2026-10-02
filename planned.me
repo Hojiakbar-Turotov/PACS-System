@@ -405,4 +405,9 @@ D:\PACS\
      - Navbatdagi bemorlar qat'iy FIFO navbat tartib raqami (`#1`, `#2`, `#3`, ...) bo'yicha ketma-ketlikda saralanadi.
      - `⚡ Jarayonda` filtri tanlanganda yoki `Telegram Holati & Jarayon` ustuni bosilganda jadval avtomatik ravishda ushbu navbat ketma-ketligiga o'tadi.
      - Jonli monitoring (polling) vaqtida vazifalar o'zaro o'rin almashganda jadval real vaqt rejimida avtomatik qayta tartiblanib boradi.
+9. **Kengaytirilgan Enli Dizayn va Sana Xotirasi (Wide Layout & Persistent Date Preference):**
+   - Sahifa asosiy kengligi `max-width: 98%` (avvalgi 1350px o'rniga) ga kengaytirildi. Katta va o'rta ekranlarda jadval kataklari va "Amallar" ustuni to'liq sig'adigan, ortiqcha gorizontal aylantirish talab etilmaydigan holatga keltirildi.
+   - Jadval ichidagi amallar tugmalari `.action-cell-wrapper` orqali to'g'rilandi va `.btn-sm` o'lchamlari mutanosib ixchamlashtirildi.
+   - Tanlangan sana filtri (`Bugun`, `Kecha`, `Aniq sana` va h.k.), saralash va sahifa hajmi sozlamalari brauzer `localStorage` xotirasiga avtomatik saqlanadi. Foydalanuvchi tizimdan chiqib ketib qayta kirganda ham aynan oxirgi belgilangan sana ("Bugun") avtomatik ravishda ochiladi.
+   - Mahalliy vaqt mintaqasi (Asia/Tashkent) bo'yicha sanani hisoblash aniqlashtirildi (UTC ofset chalkashliklari bartaraf etildi).
 
