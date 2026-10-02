@@ -366,7 +366,35 @@ D:\PACS\
    - Ikkita usul qo'llab-quvvatlanadi:
      - 🗜️ **ZIP Arxiv yuklash**: ichidagi barcha DICOM fayllar avtomatik ochiladi;
      - 📁 **Papka yuklash**: kompyuterdagi DICOM papkasini butunicha tanlash.
-   - DICOM fayllar metama'lumotlari (`PatientName`, `PatientID`, `StudyUID`) o'qilib, mahalliy arxivlanadi va `StoragePresentationContexts` (C-STORE SCU) orqali to'g'ridan-to'g'ri GE KT apparatiga (`192.168.10.250:4006`, AE: `CT01`) uzatiladi.
-
-
+   - DICOM fayllar metama'lumotlari (`PatientName`, `PatientID`, `StudyUID`) o'qilib, mahalliy arxivlanadi va `StoragePresentationContexts` (C-STORE SCU) orqali to'g'ridan-to'g'ri GE KT apparatiga (`192.168.10.250:4006`, AE: `CT01`) uzatiladi.### 7.12. 3 Bosqichli Qat'iy Konkurentlik Quvuri, Jonli Navbat Raqamlari (#N), Boshqaruv Menyusi va Optimal Telegram Yuklash
+1. **3 Bosqichli Qat'iy Konkurentlik Quvuri (3-Stage Concurrency Pipeline):**
+   - **KT Apparatidan yuklab olish (C-MOVE):** Maksimal **2 ta** parallel oqim (GE KT tomograf apparati tarmog'i va konsoli qotib qolmasligi uchun).
+   - **ZIP Arxivlash (Siqish):** Maksimal **3 ta** parallel oqim (protsessor va tezkor xotira me'yori uchun).
+   - **Telegramga yuborish (MTProto):** Qat'iy **1 ta** ketma-ket (bitta fayl to'liq yuklanib bo'lingachgina keyingisi boshlanadi, Telegram kanalining cheklovlariga tushmaslik uchun).
+2. **Jonli Navbat Raqamlari va Pozitsiyalari (#N):**
+   - Navbatda kutayotgan har bir bemor uchun dinamik tartib raqami hisoblanadi va jadvalda real vaqtda aks ettiriladi:
+     - `⏳ KT navbatida: #5 (kutilmoqda)`
+     - `⏳ ZIP navbatida: #4 (kutilmoqda)`
+     - `⏳ Telegram navbatida: #2 (kutilmoqda)`
+   - Biror tekshiruv navbatdan chiqishi yoki yakunlanishi bilan qolgan barcha kutayotgan bemorlarning pozitsiyalari avtomatik qayta hisoblanadi (#3 -> #2 -> #1).
+3. **"Jarayonda" Filtriga Navbatdagilarni To'liq Qamrab Olish:**
+   - Hozir bajarilayotgan hamda navbatda turgan (`QUEUED_CT`, `QUEUED_ARCHIVE`, `QUEUED_TG`) barcha tekshiruvlar `⚡ Jarayonda (X)` hisoblagichiga qo'shildi va ushbu filtr tanlanganda barchasi ko'rsatiladi.
+4. **Boshqaruv Menyusi (Action Dropdown Menu):**
+   - Jadval tepasidagi 8 ta chalkash tugmalar o'rniga qulay, ixcham va zamonaviy `⚡ Boshqaruv Menyusi ▾` ochiluvchi menyusi joriy qilindi.
+   - Favqulodda `🛑 Bekor qilish` tugmasi qizil rangda alohida ajratib qo'yildi.
+   - Menyu ichida:
+     - `🗜️ Barcha KT ni arxivlash (728+)`
+     - `📥 Tanlanganlarni arxivlash` (tanlanganlar soni bilan)
+     - `📤 Tanlanganlarni Telegramga` (tanlanganlar soni bilan)
+     - `📤 DICOM Import (KT ga yuklash)` (ZIP / Papka)
+     - `🔄 KT bilan to'liq sinxronlash`
+     - `🗑️ Tanlanganlarni diskdan tozalash` (xavfsiz tozalash)
+5. **Bekor Qilish (Cancel All) To'liq Ishonchliligi:**
+   - `🛑 Bekor qilish` bosilganda barcha 3 ta navbat (KT, ZIP, Telegram) darhol bo'shatiladi, faol bajarilayotgan oqimlar to'xtatiladi, xotiradagi progress va SQLite dagi qotib qolgan statuslar `IDLE` holatiga to'liq qaytariladi.
+6. **Telegramdan Qayta Yuklab Olishni Optimallashtirish:**
+   - `FastTelethonhelper.download_file` parallel ko'p oqimli MTProto uzatish mexanizmi orqali 5-10 barobar tezroq yuklab olish yo'lga qo'yildi.
+   - Jonli yuklanish tezligi (`⚡ MB/s`) va foizlari ekranda silliq yangilanib boradi.
+7. **DICOM Import Moduli Xatolari Tuzatildi:**
+   - Modal oyna ochilmaslik sababi (`.active` klassi va CSS qatlamlari) bartaraf etildi.
+   - Papka ichidagi barcha ichki yo'llarni (subfolderlarni) xavfsiz qabul qilish ta'minlandi.
 

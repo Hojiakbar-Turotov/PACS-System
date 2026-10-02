@@ -105,6 +105,14 @@ function updateSelectedCount() {
     const deleteCountSpan = document.getElementById('delete-selected-count');
     const deleteBtn = document.getElementById('btn-batch-delete-local');
 
+    // Menyu elementlari
+    const menuArchiveSpan = document.getElementById('menu-archive-selected-count');
+    const menuArchiveBtn = document.getElementById('menu-item-batch-archive');
+    const menuTgSpan = document.getElementById('menu-selected-count');
+    const menuTgBtn = document.getElementById('menu-item-batch-telegram');
+    const menuDelSpan = document.getElementById('menu-delete-selected-count');
+    const menuDelBtn = document.getElementById('menu-item-batch-delete');
+
     const cnt = selectedStudyIds.size;
     if (countSpan) countSpan.innerText = cnt;
     if (batchBtn) batchBtn.disabled = (cnt === 0);
@@ -112,6 +120,13 @@ function updateSelectedCount() {
     if (archiveBtn) archiveBtn.disabled = (cnt === 0);
     if (deleteCountSpan) deleteCountSpan.innerText = cnt;
     if (deleteBtn) deleteBtn.disabled = (cnt === 0);
+
+    if (menuArchiveSpan) menuArchiveSpan.innerText = cnt;
+    if (menuArchiveBtn) menuArchiveBtn.disabled = (cnt === 0);
+    if (menuTgSpan) menuTgSpan.innerText = cnt;
+    if (menuTgBtn) menuTgBtn.disabled = (cnt === 0);
+    if (menuDelSpan) menuDelSpan.innerText = cnt;
+    if (menuDelBtn) menuDelBtn.disabled = (cnt === 0);
 }
 
 function toggleStudySelect(id, checkbox) {
@@ -207,12 +222,20 @@ function resetAllFilters() {
     applyStudyFilters();
 }
 
+function isStudyInProgress(s) {
+    const st = s.active_stage || s.progress_stage || '';
+    if (['DOWNLOADING_CT', 'QUEUED_CT', 'ARCHIVING', 'QUEUED_ARCHIVE', 'UPLOADING_TG', 'QUEUED_TG', 'DOWNLOADING_TG'].includes(st)) {
+        return true;
+    }
+    if (s.telegram_status === 'RETRIEVING' || s.telegram_status === 'SENDING') {
+        return true;
+    }
+    return false;
+}
+
 function updateFilterCounts() {
     const total = allStudies.length;
-    const inProgressCount = allStudies.filter(s => {
-        const st = s.active_stage || '';
-        return (st === 'DOWNLOADING_CT' || st === 'ARCHIVING' || st === 'UPLOADING_TG' || s.telegram_status === 'RETRIEVING' || s.telegram_status === 'SENDING');
-    }).length;
+    const inProgressCount = allStudies.filter(s => isStudyInProgress(s)).length;
     const storedCount = allStudies.filter(s => s.has_local_copy).length;
     const ctCount = allStudies.filter(s => s.telegram_status === 'ON_CT_DEVICE').length;
     const sentCount = allStudies.filter(s => s.telegram_status === 'SENT').length;
@@ -264,10 +287,9 @@ function applyStudyFilters() {
     filteredStudies = allStudies.filter(s => {
         // Status pill filter
         if (currentStudyFilter === 'IN_PROGRESS') {
-            const st = s.active_stage || '';
-            const isProg = (st === 'DOWNLOADING_CT' || st === 'ARCHIVING' || st === 'UPLOADING_TG' || s.telegram_status === 'RETRIEVING' || s.telegram_status === 'SENDING');
-            if (!isProg) return false;
-        } else if (currentStudyFilter === 'LOCAL_STORED') {
+            if (!isStudyInProgress(s)) return false;
+        }
+} else if (currentStudyFilter === 'LOCAL_STORED') {
             if (!s.has_local_copy) return false;
         } else if (currentStudyFilter === 'ON_CT_DEVICE') {
             if (s.telegram_status !== 'ON_CT_DEVICE') return false;
@@ -531,6 +553,15 @@ function renderStudiesTable() {
                 </div>
             `;
             actionBtn = `<button class="btn btn-sm btn-action-download" disabled>⏳ Yuklanmoqda...</button>`;
+        } else if (stage === 'QUEUED_CT') {
+            statusBadge = `
+                <div class="progress-container">
+                    <span class="badge-status" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.74rem; font-weight: 700;">
+                        ${progressText || '⏳ KT navbatida (kutilmoqda)'}
+                    </span>
+                </div>
+            `;
+            actionBtn = `<button class="btn btn-sm" disabled style="background:#f1f5f9; color:#94a3b8; border:1px solid #cbd5e1;">⏳ Navbatda...</button>`;
         } else if (stage === 'ARCHIVING') {
             statusBadge = `
                 <div class="progress-container">
@@ -539,6 +570,15 @@ function renderStudiesTable() {
                 </div>
             `;
             actionBtn = `<button class="btn btn-sm btn-action-download" disabled>🗜️ Siqilmoqda...</button>`;
+        } else if (stage === 'QUEUED_ARCHIVE') {
+            statusBadge = `
+                <div class="progress-container">
+                    <span class="badge-status" style="background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 0.74rem; font-weight: 700;">
+                        ${progressText || '⏳ ZIP navbatida (kutilmoqda)'}
+                    </span>
+                </div>
+            `;
+            actionBtn = `<button class="btn btn-sm" disabled style="background:#f1f5f9; color:#94a3b8; border:1px solid #cbd5e1;">⏳ Navbatda...</button>`;
         } else if (stage === 'UPLOADING_TG') {
             const speedInfo = s.active_speed ? ` • ⚡ ${s.active_speed}` : '';
             const tgText = progressText || `Telegramga: ${percent}%${speedInfo}`;
@@ -549,8 +589,17 @@ function renderStudiesTable() {
                 </div>
             `;
             actionBtn = `<button class="btn btn-sm btn-action-resend" disabled>📤 Yuklanmoqda...</button>`;
+        } else if (stage === 'QUEUED_TG') {
+            statusBadge = `
+                <div class="progress-container">
+                    <span class="badge-status" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 0.74rem; font-weight: 700;">
+                        ${progressText || '⏳ Telegram navbatida (kutilmoqda)'}
+                    </span>
+                </div>
+            `;
+            actionBtn = `<button class="btn btn-sm" disabled style="background:#f1f5f9; color:#94a3b8; border:1px solid #cbd5e1;">⏳ Navbatda...</button>`;
         } else if (stage === 'DOWNLOADING_TG') {
-            const tgText = progressText || `Telegramdan olinmoqda: ${percent}%`;
+            const tgText = progressText || `Telegramdan: ${percent}%`;
             statusBadge = `
                 <div class="progress-container">
                     <span class="badge-status status-retrieving" style="font-size: 0.72rem; font-weight: 600;" title="${tgText}">📥 ${tgText}</span>
@@ -634,10 +683,11 @@ async function checkActiveProgresses() {
         const activeIds = Object.keys(progressMap);
 
         let hasActiveTasks = false;
+        const activeStages = ['DOWNLOADING_CT', 'QUEUED_CT', 'ARCHIVING', 'QUEUED_ARCHIVE', 'UPLOADING_TG', 'QUEUED_TG', 'DOWNLOADING_TG'];
         activeIds.forEach(idStr => {
             const id = parseInt(idStr);
             const p = progressMap[idStr];
-            if (p && (p.stage === 'DOWNLOADING_CT' || p.stage === 'ARCHIVING' || p.stage === 'UPLOADING_TG')) {
+            if (p && activeStages.includes(p.stage)) {
                 hasActiveTasks = true;
                 // Mahalliy xotirada mavjud study obyektini yangilash
                 const study = allStudies.find(s => s.id === id);
@@ -663,6 +713,8 @@ async function checkActiveProgresses() {
                 }
             }
         });
+
+        updateFilterCounts();
 
         if (hasActiveTasks) {
             renderStudiesTable();
@@ -818,6 +870,19 @@ async function cancelAllOperations() {
         confirmText: "To'xtatish va tozalash",
         onConfirm: async () => {
             try {
+                // UI da darhol barcha faol va navbatdagi holatlarni tozalash
+                allStudies.forEach(s => {
+                    s.active_stage = 'IDLE';
+                    s.active_percent = 0;
+                    s.active_text = '';
+                    s.active_speed = '';
+                    if (s.telegram_status === 'SENDING' || s.telegram_status === 'RETRIEVING') {
+                        s.telegram_status = s.has_local_copy ? 'PENDING' : 'ON_CT_DEVICE';
+                    }
+                });
+                renderStudiesTable();
+                updateFilterCounts();
+
                 const res = await fetch('/api/queue/cancel_all', { method: 'POST' });
                 const data = await res.json();
                 showDialog({
@@ -928,22 +993,53 @@ async function downloadFromTelegram(id) {
     });
 }
 
+// Boshqaruv Menyusi (Dropdown) boshqaruvi
+function toggleActionDropdown(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('action-dropdown-menu');
+    if (menu) menu.classList.toggle('show');
+}
+
+function closeActionDropdown() {
+    const menu = document.getElementById('action-dropdown-menu');
+    if (menu) menu.classList.remove('show');
+}
+
+document.addEventListener('click', (e) => {
+    const container = document.getElementById('action-dropdown-container');
+    if (container && !container.contains(e.target)) {
+        closeActionDropdown();
+    }
+});
+
 // DICOM Import Modal boshqaruvi
 let currentImportTab = 'zip';
 
 function openImportModal() {
     const modal = document.getElementById('import-modal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+        modal.classList.add('active');
+    }
+    const inpZip = document.getElementById('import-input-zip');
+    const inpFolder = document.getElementById('import-input-folder');
+    if (inpZip) inpZip.value = '';
+    if (inpFolder) inpFolder.value = '';
+
     switchImportTab('zip');
     const pArea = document.getElementById('import-progress-area');
     if (pArea) pArea.style.display = 'none';
     const subBtn = document.getElementById('btn-submit-import');
-    if (subBtn) subBtn.disabled = false;
+    if (subBtn) {
+        subBtn.disabled = false;
+        subBtn.innerText = '🚀 Import qilish';
+    }
 }
 
 function closeImportModal() {
     const modal = document.getElementById('import-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.classList.remove('active');
+    }
 }
 
 function switchImportTab(tab) {

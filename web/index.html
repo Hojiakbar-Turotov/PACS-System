@@ -75,28 +75,44 @@
                 <div class="table-header">
                     <h2>Yakunlangan Tekshiruvlar va Telegram Arxiv Jurnali</h2>
                     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <button class="btn btn-sm" id="btn-cancel-all" onclick="cancelAllOperations()" style="background: #ef4444; color: white; border: none; font-weight: 700;" title="Barcha faol yuklash, arxivlash va navbatdagi jarayonlarni darhol to'xtatish va tozalash">
+                        <button class="btn btn-sm" id="btn-cancel-all" onclick="cancelAllOperations()" style="background: #ef4444; color: white; border: none; font-weight: 700; padding: 6px 14px; border-radius: 8px;" title="Barcha faol yuklash, arxivlash va navbatdagi jarayonlarni darhol to'xtatish va tozalash">
                             🛑 Bekor qilish
                         </button>
-                        <button class="btn btn-sm" id="btn-import-dicom" onclick="openImportModal()" style="background: #8b5cf6; color: white; border: none; font-weight: 600;" title="Tashqi DICOM tekshiruvlarini ZIP yoki Papka orqali yuklash va GE KT apparatiga import qilish">
-                            📤 DICOM Import (KT ga)
-                        </button>
-                        <button class="btn btn-sm" id="btn-batch-archive" onclick="archiveSelectedStudies()" disabled style="background: #10b981; color: white; border: none; font-weight: 600;" title="Tanlangan bemorlarni KT apparatidan kompyuterga yuklab olib ZIP arxivlash (Telegramga yuborilmaydi)">
-                            📥 Tanlanganlarni arxivlash (<span id="archive-selected-count">0</span>)
-                        </button>
-                        <button class="btn btn-sm" id="btn-archive-all" onclick="archiveAllStudies()" style="background: #0284c7; color: white; border: none; font-weight: 600;" title="KT apparatidagi barcha 727+ bemorlarni ushbu kompyuterga navbat bilan yuklab olib ZIP arxivlash">
-                            🗜️ Barcha KT ni arxivlash
-                        </button>
-                        <button class="btn btn-sm btn-primary" id="btn-batch-telegram" onclick="resendSelectedStudies()" disabled title="Faqat siz tanlagan bemorlarni Telegram kanaliga yuborish">
-                            📤 Tanlanganlarni Telegramga (<span id="selected-count">0</span>)
-                        </button>
-                        <button class="btn btn-sm" id="btn-batch-delete-local" onclick="deleteSelectedLocalStorage()" disabled style="background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; font-weight: 600;" title="Tanlangan tekshiruvlarning kompyuterdagi ZIP arxivlarini o'chirib diskdan joy bo'shatish">
-                            🗑️ Diskdan tozalash (<span id="delete-selected-count">0</span>)
-                        </button>
-                        <button class="btn btn-sm btn-secondary" onclick="syncAllCT()" id="btn-sync-ct" title="KT apparatidagi barcha 727+ bemorlarni to'liq tekshirish va ro'yxatga olish">
-                            🔄 KT bilan sinxronlash
-                        </button>
-                        <button class="btn btn-sm btn-refresh" onclick="loadStudies()">🔄 Yangilash</button>
+
+                        <div class="action-dropdown" id="action-dropdown-container">
+                            <button class="action-dropdown-btn" onclick="toggleActionDropdown(event)" id="btn-action-dropdown-trigger" title="Amallar va arxivlash menyusi">
+                                ⚡ Boshqaruv Menyusi ▾
+                            </button>
+                            <div class="action-dropdown-menu" id="action-dropdown-menu">
+                                <button class="action-dropdown-item" onclick="archiveAllStudies(); closeActionDropdown();" title="KT apparatidagi barcha arxivlanmagan bemorlarni kompyuterga yuklab olib ZIP arxivlash">
+                                    <span>🗜️ Barcha KT ni arxivlash</span>
+                                    <span style="font-size: 0.75rem; color: #64748b;">(728+)</span>
+                                </button>
+                                <button class="action-dropdown-item" id="menu-item-batch-archive" onclick="archiveSelectedStudies(); closeActionDropdown();" disabled title="Tanlangan bemorlarni KT dan yuklab olib ZIP arxivlash">
+                                    <span>📥 Tanlanganlarni arxivlash</span>
+                                    <span class="badge-status status-sent" style="font-size: 0.72rem; padding: 1px 6px;" id="menu-archive-selected-count">0</span>
+                                </button>
+                                <button class="action-dropdown-item" id="menu-item-batch-telegram" onclick="resendSelectedStudies(); closeActionDropdown();" disabled title="Faqat siz tanlagan bemorlarni Telegram kanaliga yuborish">
+                                    <span>📤 Tanlanganlarni Telegramga</span>
+                                    <span class="badge-status status-sent" style="font-size: 0.72rem; padding: 1px 6px;" id="menu-selected-count">0</span>
+                                </button>
+                                <div class="action-dropdown-divider"></div>
+                                <button class="action-dropdown-item" onclick="openImportModal(); closeActionDropdown();" title="Tashqi DICOM tekshiruvlarini yuklash va KT ga uzatish">
+                                    <span>📤 DICOM Import (KT ga yuklash)</span>
+                                    <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: 700;">ZIP / Papka</span>
+                                </button>
+                                <button class="action-dropdown-item" onclick="syncAllCT(); closeActionDropdown();" title="KT apparatidagi barcha bemorlar ro'yxatini to'liq tekshirish va sinxronlash">
+                                    <span>🔄 KT bilan to'liq sinxronlash</span>
+                                </button>
+                                <div class="action-dropdown-divider"></div>
+                                <button class="action-dropdown-item danger" id="menu-item-batch-delete" onclick="deleteSelectedLocalStorage(); closeActionDropdown();" disabled title="Tanlangan tekshiruvlarning serverdagi ZIP arxivlarini o'chirib diskdan joy bo'shatish">
+                                    <span>🗑️ Tanlanganlarni diskdan tozalash</span>
+                                    <span class="badge-status status-failed" style="font-size: 0.72rem; padding: 1px 6px;" id="menu-delete-selected-count">0</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-sm btn-refresh" onclick="loadStudies()" style="border-radius: 8px;">🔄 Yangilash</button>
                     </div>
                 </div>
 
@@ -338,12 +354,14 @@
                 <button class="btn btn-primary btn-sm" onclick="saveSettingsFromModal()">💾 Saqlash</button>
             </div>
         </div>
+    </div>
+
     <!-- DICOM IMPORT (KT GA YUKLASH) MODAL -->
-    <div id="import-modal" class="modal-backdrop" style="display: none;" onclick="if(event.target===this) closeImportModal()">
-        <div class="modal-content" style="max-width: 540px;">
+    <div id="import-modal" class="modal-backdrop" onclick="if(event.target===this) closeImportModal()">
+        <div class="modal-box" style="max-width: 540px; width: 95%;">
             <div class="modal-header">
                 <h3>📤 DICOM Import va KT ga Yuklash</h3>
-                <button class="modal-close" onclick="closeImportModal()">&times;</button>
+                <button class="modal-close-btn" onclick="closeImportModal()">✕</button>
             </div>
             <div class="modal-body" style="padding: 16px 24px; display: flex; flex-direction: column; gap: 14px;">
                 <p style="font-size: 0.85rem; color: #475569; margin: 0;">

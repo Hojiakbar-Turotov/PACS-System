@@ -197,7 +197,7 @@ class BatchResendRequest(BaseModel):
     study_ids: list[int]
 
 @app.post("/api/studies/{study_id}/resend")
-def resend_study_telegram(study_id: int, background_tasks: BackgroundTasks):
+def resend_study_telegram(study_id: int):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM studies WHERE id = ?", (study_id,))
@@ -207,42 +207,8 @@ def resend_study_telegram(study_id: int, background_tasks: BackgroundTasks):
     if not study:
         raise HTTPException(status_code=404, detail="Tekshiruv topilmadi")
         
-    zip_path = Path(study["archive_path"]) if study["archive_path"] else None
-    if zip_path and zip_path.exists():
-        from core.database import DB_LOCK
-        with DB_LOCK:
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE studies SET telegram_status = 'SENDING' WHERE id = ?", (study_id,))
-            conn.commit()
-            conn.close()
-        
-        def _send_bg():
-            send_study_to_telegram(
-                study_id=study["id"],
-                patient_name=study["patient_name"],
-                patient_id=study["patient_id"],
-                study_desc=study["study_description"],
-                study_date=study["study_date"],
-                slices_count=study["instances_count"],
-                zip_path=zip_path,
-                force=True
-            )
-        background_tasks.add_task(_send_bg)
-        return {"status": "sending", "detail": "Telegramga yuklash boshlandi"}
-    else:
-        # Fayllar KT apparatida - C-MOVE orqali tortib olamiz
-        log_event("INFO", f"Fayllar KT apparatida, C-MOVE orqali so'ralmoqda: {study['patient_name']} ({study['patient_id']})")
-        from core.database import DB_LOCK
-        with DB_LOCK:
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE studies SET telegram_status = 'RETRIEVING' WHERE id = ?", (study_id,))
-            conn.commit()
-            conn.close()
-        
-        background_tasks.add_task(retrieve_study_from_ct, study["study_instance_uid"])
-        return {"status": "retrieving", "detail": "KT apparatidan tasvirlar yuklab olinmoqda va Telegramga uzatiladi"}
+    count = batch_manager.enqueue_single_telegram(study_id)
+    return {"status": "enqueued", "detail": "Telegram navbatiga muvaffaqiyatli qo'shildi"}
 
 @app.post("/api/studies/batch_resend")
 def batch_resend_studies(req: BatchResendRequest):
@@ -406,7 +372,10 @@ async def import_files_endpoint(
     temp_dir = Path(tempfile.mkdtemp(prefix="dicom_files_upload_"))
     try:
         for f in files:
-            dest_file = temp_dir / Path(f.filename.replace('/', os.sep).replace('\\', os.sep)).name
+            # Nisbiy yo'l yoki nomni xavfsiz shakllantirish
+            norm_name = f.filename.replace('/', os.sep).replace('\\', os.sep)
+            dest_file = temp_dir / norm_name
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
             with open(dest_file, "wb") as buffer:
                 shutil.copyfileobj(f.file, buffer)
         results = process_imported_dicom_dir(temp_dir, send_to_ct=send_to_ct)
@@ -417,7 +386,7 @@ async def import_files_endpoint(
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 @app.post("/api/studies/{study_id}/download_to_server")
-def download_study_to_server(study_id: int, background_tasks: BackgroundTasks):
+def download_study_to_server(study_id: int):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM studies WHERE id = ?", (study_id,))
@@ -436,9 +405,8 @@ def download_study_to_server(study_id: int, background_tasks: BackgroundTasks):
     if has_local:
         return {"status": "already_stored", "detail": "Ushbu tekshiruv allaqachon server xotirasida mavjud"}
         
-    log_event("INFO", f"📥 KT apparatidan faqat serverga yuklab olish: {study['patient_name']} ({study['patient_id']})")
-    background_tasks.add_task(retrieve_study_from_ct, study["study_instance_uid"], False)
-    return {"status": "downloading", "detail": "KT apparatidan serverga yuklab olish boshlandi"}
+    count = batch_manager.enqueue_single_archive(study_id)
+    return {"status": "enqueued", "detail": "KT dan serverga yuklash navbatiga qo'shildi"}
 
 @app.post("/api/studies/{study_id}/open_radiant")
 def open_in_radiant(study_id: int):

@@ -9,7 +9,7 @@ from typing import Optional
 import requests
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-from FastTelethonhelper import upload_file as fast_upload_file
+from FastTelethonhelper import upload_file as fast_upload_file, download_file as fast_download_file
 
 from core.config import (
     TELEGRAM_BOT_TOKEN,
@@ -348,7 +348,21 @@ async def _download_from_tg_async(study_id: int) -> bool:
             except Exception:
                 pass
 
-        await client.download_media(msg, file=str(target_path), progress_callback=progress_cb)
+        # Optimal parallel MTProto yuklab olish (FastTelethon)
+        try:
+            if hasattr(msg, 'document') and msg.document:
+                with open(str(target_path), 'wb') as out_f:
+                    await fast_download_file(
+                        client=client,
+                        location=msg.document,
+                        out=out_f,
+                        progress_callback=progress_cb
+                    )
+            else:
+                await client.download_media(msg, file=str(target_path), progress_callback=progress_cb)
+        except Exception as e_fast:
+            logger.warning(f"FastTelethon yuklab olishda ogohlantirish: {e_fast}, standart download_media ga o'tilmoqda...")
+            await client.download_media(msg, file=str(target_path), progress_callback=progress_cb)
 
         file_size = target_path.stat().st_size
         now_iso = datetime.now().isoformat()
