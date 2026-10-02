@@ -335,5 +335,20 @@ D:\PACS\
    - Eski takroriy 63 ta ochiq papka tozalab tashlandi va SSD diskdan 15 GB (15,359 MB) bo'sh joy tejaldi.
    - RadiAnt'da ochish harakati endi to'g'ridan-to'g'ri `.zip` arxivga yo'naltirilgan.
 
+### 7.10. Telegram Avtorizatsiya Xatoligi Tuzatilishi, Faqat Qo'lda Yuborish Nazorati va Ommaviy Mahalliy Arxivlash
+1. **Telegram StringSession va ImportBotAuthorizationRequest Xatosini Bartaraf Etish:**
+   - Har bir yangi ulanishda bot qayta login bo'lishi natijasida yuzaga kelgan Telegram FloodWait xatoligi bartaraf etildi.
+   - Avvaldan muvaffaqiyatli avtorizatsiya qilingan doimiy sessiya kaliti `StringSession` orqali tizimga ulandi (`TELEGRAM_STRING_SESSION`).
+   - Diskdagi `.session` fayllar qulfi va takroriy login xatoliklari to'liq yo'qotildi.
+2. **"Yuborish tugmasini o'zim bosaman" — To'liq Qo'lda Boshqaruv:**
+   - KT apparatidan yuklab olingan yoki avto-rekondan chiqqan tekshiruvlar avtomatik Telegramga yuborilishi to'xtatildi (`send_telegram=False`).
+   - Barcha yangi kelgan va qabul qilingan tekshiruvlar faqat kompyuterda ZIP qilinadi va `PENDING` holatida saqlanadi.
+   - Foydalanuvchi qachon o'zi jadvaldan `📤 Telegram` yoki `📤 Tanlanganlarni Telegramga` tugmasini bossa, aynan o'sha bemorlargina yuboriladi.
+3. **Barcha KT Fayllarini Serverga Ommaviy Arxivlash:**
+   - Veb-panelda ikkita yangi amallar tugmasi qo'shildi:
+     - `📥 Tanlanganlarni arxivlash`: faqat belgilangan bemorlarni KT dan tortib olib, kompyuterda ZIP qilib arxivlaydi.
+     - `🗜️ Barcha KT ni arxivlash`: KT apparatidagi barcha 727+ bemorlarni fonda parallel navbat bilan yuklab olib, ZIP holida saqlaydi.
+   - O'chirilgan xatoliklar holati (FAILED bo'lgan 13 ta bemor) qayta tozalab, foydalanishga shay holatga keltirildi.
+
 
 

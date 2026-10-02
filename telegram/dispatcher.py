@@ -8,7 +8,7 @@ from typing import Optional
 
 import requests
 from telethon import TelegramClient
-from telethon.sessions import MemorySession
+from telethon.sessions import StringSession
 from FastTelethonhelper import upload_file as fast_upload_file
 
 from core.config import (
@@ -16,6 +16,7 @@ from core.config import (
     TELEGRAM_CHANNEL_ID,
     TELEGRAM_API_ID,
     TELEGRAM_API_HASH,
+    TELEGRAM_STRING_SESSION,
 )
 from core.database import get_connection, log_event, DB_LOCK
 
@@ -63,9 +64,11 @@ def build_caption(patient_name: str, patient_id: str, study_date: str, study_des
     return "\n".join(lines)
 
 async def _send_mtproto_async(zip_path: Path, caption_text: str, study_id: int = None) -> int:
-    """Telethon MTProto + FastTelethon parallel uploader orqali maksimal tezlikda yuborish (MemorySession)"""
-    client = TelegramClient(MemorySession(), TELEGRAM_API_ID, TELEGRAM_API_HASH)
-    await client.start(bot_token=TELEGRAM_BOT_TOKEN)
+    """Telethon MTProto + FastTelethon parallel uploader orqali maksimal tezlikda yuborish (StringSession)"""
+    client = TelegramClient(StringSession(TELEGRAM_STRING_SESSION), TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    await client.connect()
+    if not await client.is_user_authorized():
+        await client.start(bot_token=TELEGRAM_BOT_TOKEN)
     try:
         channel_peer = int(TELEGRAM_CHANNEL_ID)
         last_logged = [0]

@@ -80,7 +80,7 @@ def set_retrieval_intent(study_uid: str, send_telegram: bool):
     _retrieval_intents[study_uid] = send_telegram
 
 def get_retrieval_intent(study_uid: str) -> bool:
-    return _retrieval_intents.pop(study_uid, True)
+    return _retrieval_intents.pop(study_uid, False)
 
 def process_completed_study(study_uid, study_dir: Path, patient_id, patient_name, study_desc, study_date, modality):
     """Tekshiruv qabul qilib bo'lingach chaqiriladigan asosiy funksiya"""
@@ -198,7 +198,20 @@ def process_completed_study(study_uid, study_dir: Path, patient_id, patient_name
                 is_update=is_update
             )
         else:
-            log_event("INFO", f"💾 Faqat serverga saqlash yakunlandi: {patient_name} [{slices_count} kadr]")
+            log_event("INFO", f"💾 Faqat serverga arxivlandi: {patient_name} [{slices_count} kadr]")
+            with DB_LOCK:
+                conn = get_connection()
+                conn.execute("""
+                    UPDATE studies SET
+                        telegram_status = CASE WHEN telegram_status = 'SENT' THEN 'SENT' ELSE 'PENDING' END,
+                        local_copy_status = 'STORED',
+                        progress_stage = 'IDLE',
+                        progress_percent = 100,
+                        progress_text = ''
+                    WHERE id = ?
+                """, (study_db_id,))
+                conn.commit()
+                conn.close()
             try:
                 from core.progress_tracker import mark_completed
                 mark_completed(study_db_id, success=True)

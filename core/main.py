@@ -250,6 +250,18 @@ def batch_resend_studies(req: BatchResendRequest):
     count = batch_manager.enqueue_studies(req.study_ids)
     return {"status": "started", "count": count}
 
+@app.post("/api/studies/batch_archive")
+def batch_archive_studies(req: BatchResendRequest):
+    if not req.study_ids:
+        raise HTTPException(status_code=400, detail="Kamida bitta tekshiruv tanlanishi kerak")
+    count = batch_manager.enqueue_studies_archive(req.study_ids)
+    return {"status": "started", "count": count}
+
+@app.post("/api/studies/archive_all_ct")
+def archive_all_ct_studies():
+    count = batch_manager.enqueue_archive_all_ct()
+    return {"status": "started", "count": count}
+
 @app.post("/api/studies/{study_id}/download_to_server")
 def download_study_to_server(study_id: int, background_tasks: BackgroundTasks):
     conn = get_connection()

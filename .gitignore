@@ -12,3 +12,5 @@ telegram/session/*.session
 *.log
 *.zip
 PACS_System_Portable.zip
+*.lnk
+Orthanc Server/

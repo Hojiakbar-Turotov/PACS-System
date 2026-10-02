@@ -100,8 +100,13 @@ function formatUzbekDate(dateStr) {
 function updateSelectedCount() {
     const countSpan = document.getElementById('selected-count');
     const batchBtn = document.getElementById('btn-batch-telegram');
+    const archiveCountSpan = document.getElementById('archive-selected-count');
+    const archiveBtn = document.getElementById('btn-batch-archive');
+
     if (countSpan) countSpan.innerText = selectedStudyIds.size;
     if (batchBtn) batchBtn.disabled = (selectedStudyIds.size === 0);
+    if (archiveCountSpan) archiveCountSpan.innerText = selectedStudyIds.size;
+    if (archiveBtn) archiveBtn.disabled = (selectedStudyIds.size === 0);
 }
 
 function toggleStudySelect(id, checkbox) {
@@ -710,6 +715,68 @@ async function resendSelectedStudies() {
                     checkActiveProgresses();
                 } else {
                     showDialog({ title: "Xatolik", message: data.detail || "Yuborib bo'lmadi" });
+                }
+            } catch (err) {
+                showDialog({ title: "Tarmoq xatosi", message: err.toString() });
+            }
+        }
+    });
+}
+
+// Tanlanganlarni faqat serverga ZIP qilib arxivlash (Telegramga yubormaydi)
+async function archiveSelectedStudies() {
+    if (selectedStudyIds.size === 0) return;
+
+    showDialog({
+        title: "Serverga Arxivlash",
+        message: `${selectedStudyIds.size} ta tekshiruv KT apparatidan ushbu kompyuterga yuklab olinib, ZIP qilib arxivlanadi.\n(Telegramga yuborilmaydi, yuborish tugmasini o'zingiz xohlaganda bosasiz). Tasdiqlaysizmi?`,
+        confirmText: "Arxivlashni boshlash",
+        onConfirm: async () => {
+            try {
+                const res = await fetch('/api/studies/batch_archive', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ study_ids: Array.from(selectedStudyIds) })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showDialog({
+                        title: "Arxivlash boshlandi",
+                        message: `✅ ${data.count} ta tekshiruv navbatga qo'yildi va orqa fonda yuklanib arxivlanmoqda!`
+                    });
+                    selectedStudyIds.clear();
+                    const master = document.getElementById('select-all-studies');
+                    if (master) master.checked = false;
+                    updateSelectedCount();
+                    checkActiveProgresses();
+                } else {
+                    showDialog({ title: "Xatolik", message: data.detail || "Arxivlab bo'lmadi" });
+                }
+            } catch (err) {
+                showDialog({ title: "Tarmoq xatosi", message: err.toString() });
+            }
+        }
+    });
+}
+
+// Barcha KT apparatidagi tekshiruvlarni serverga to'liq arxivlash
+async function archiveAllStudies() {
+    showDialog({
+        title: "Barcha KT tekshiruvlarini arxivlash",
+        message: `KT apparatidagi barcha hali kompyuterda mavjud bo'lmagan bemorlar ketma-ketlikda ushbu kompyuterga yuklab olinadi va ZIP arxivlanadi.\n(Telegramga yuborilmaydi, yuborishni o'zingiz boshqarasiz). Jarayonni boshlaysizmi?`,
+        confirmText: "Barchasini arxivlash",
+        onConfirm: async () => {
+            try {
+                const res = await fetch('/api/studies/archive_all_ct', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    showDialog({
+                        title: "Ommaviy arxivlash boshlandi",
+                        message: `✅ KT apparatidagi ${data.count} ta bemor fonda arxivlash navbatiga qo'yildi!`
+                    });
+                    checkActiveProgresses();
+                } else {
+                    showDialog({ title: "Xatolik", message: data.detail || "Boshlab bo'lmadi" });
                 }
             } catch (err) {
                 showDialog({ title: "Tarmoq xatosi", message: err.toString() });

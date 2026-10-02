@@ -26,8 +26,9 @@ DEFAULT_SETTINGS = {
     "web_port": 8000,
     "telegram_bot_token": "8901578611:AAFwH648xgPAfnw5Oh_ScBVuzVr94-JYkJI",
     "telegram_channel_id": "-1004295879936",
-    "telegram_api_id": 2040,
-    "telegram_api_hash": "b18441a1ff607e10a989891a5462e627",
+    "telegram_api_id": 12756254,
+    "telegram_api_hash": "c77f78c1ac09bb77b02c8b800321",
+    "telegram_string_session": "1ApWapzMBu1U5C0IdOChgztLd4gSOThZ2y2c8v7XCOs2p16X1x0SNSUO4XfpvhILtq1vzIvNcylWhxbvzc_ZZ5995ieEplDii-_a5moLRqFMA4BTT8GhWKS-soN2N0s9jpIJ4xPMeLc5vE391Pap82ZHZEjjsER4JKBgzsS4Hk0TD04ZlKDFG8oj7KzzVOywXaO06j6vihvlOuGFJ0wB7he6agQ2O3R_asfZIyhtJ5bbdYjArx2xGmbpIs24bTWKtJE7--JizGdXiINCL0VI_hJOwkZMPJmjO4gVrUKFidlAkM3ZW2CXYAUClGLqUt1OiT6SjxT_Bbr7OE1HQ4NR7CyG2MdFfBj4=",
     "radiant_exe": r"C:\App\RadiAntViewer\RadiAntViewer.exe",
     "study_inactivity_timeout": 15,
     "retention_days": 30,
@@ -62,7 +63,7 @@ def _apply_globals(conf: dict):
     global PACS_HOST, PACS_PORT, PACS_AET
     global CT_HOST, CT_PORT, CT_AET
     global WEB_HOST, WEB_PORT
-    global TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, TELEGRAM_API_ID, TELEGRAM_API_HASH
+    global TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_STRING_SESSION
     global RADIANT_EXE, STUDY_INACTIVITY_TIMEOUT, RETENTION_DAYS
     global AUTO_ARCHIVE_ENABLED, NEW_STUDY_POLL_INTERVAL, RECON_STABILITY_CHECKS, DEEP_SCAN_INTERVAL, BATCH_CONCURRENCY
     
@@ -81,6 +82,7 @@ def _apply_globals(conf: dict):
     TELEGRAM_CHANNEL_ID = conf.get("telegram_channel_id", DEFAULT_SETTINGS["telegram_channel_id"])
     TELEGRAM_API_ID = int(conf.get("telegram_api_id", DEFAULT_SETTINGS["telegram_api_id"]))
     TELEGRAM_API_HASH = conf.get("telegram_api_hash", DEFAULT_SETTINGS["telegram_api_hash"])
+    TELEGRAM_STRING_SESSION = conf.get("telegram_string_session", DEFAULT_SETTINGS["telegram_string_session"])
     
     RADIANT_EXE = conf.get("radiant_exe", DEFAULT_SETTINGS["radiant_exe"])
     STUDY_INACTIVITY_TIMEOUT = int(conf.get("study_inactivity_timeout", DEFAULT_SETTINGS["study_inactivity_timeout"]))

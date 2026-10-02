@@ -158,7 +158,7 @@ class AutoArchiveDaemon:
                                 # 3 marta o'zgarmadi -> Rekon to'liq tugagan!
                                 log_event("INFO", f"✅ Rekonstruksiya to'liq yakunlandi: {name} ({inst_cnt} kadr). Avtomatik yuklab olish va arxivlash boshlandi!")
                                 del self.stability_tracker[uid]
-                                threading.Thread(target=retrieve_study_from_ct, args=(uid, True), daemon=True).start()
+                                threading.Thread(target=retrieve_study_from_ct, args=(uid, False), daemon=True).start()
 
         conn.close()
 
@@ -209,8 +209,8 @@ class AutoArchiveDaemon:
                         log_event("INFO", f"🔄 [QAYTA ARXIVLASH] Bemor {name} kadrlar soni oshgan ({local_inst} -> {ct_inst} kadr). Qayta yuklanmoqda...")
                         cursor.execute("UPDATE studies SET instances_count = ? WHERE study_instance_uid = ?", (ct_inst, uid))
                         conn.commit()
-                        # Yangilangan kadrlar bilan qayta yuklab arxivlash
-                        retrieve_study_from_ct(uid, send_telegram=True)
+                        # Yangilangan kadrlar bilan qayta yuklab arxivlash (faqat serverga)
+                        retrieve_study_from_ct(uid, send_telegram=False)
                         time.sleep(4)
 
             conn.close()

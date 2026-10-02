@@ -75,11 +75,17 @@
                 <div class="table-header">
                     <h2>Yakunlangan Tekshiruvlar va Telegram Arxiv Jurnali</h2>
                     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <button class="btn btn-sm btn-primary" id="btn-batch-telegram" onclick="resendSelectedStudies()" disabled>
-                            📤 Tanlanganlarni Telegramga yuborish (<span id="selected-count">0</span>)
+                        <button class="btn btn-sm" id="btn-batch-archive" onclick="archiveSelectedStudies()" disabled style="background: #10b981; color: white; border: none; font-weight: 600;" title="Tanlangan bemorlarni KT apparatidan kompyuterga yuklab olib ZIP arxivlash (Telegramga yuborilmaydi)">
+                            📥 Tanlanganlarni arxivlash (<span id="archive-selected-count">0</span>)
+                        </button>
+                        <button class="btn btn-sm" id="btn-archive-all" onclick="archiveAllStudies()" style="background: #0284c7; color: white; border: none; font-weight: 600;" title="KT apparatidagi barcha 727+ bemorlarni ushbu kompyuterga navbat bilan yuklab olib ZIP arxivlash">
+                            🗜️ Barcha KT ni arxivlash
+                        </button>
+                        <button class="btn btn-sm btn-primary" id="btn-batch-telegram" onclick="resendSelectedStudies()" disabled title="Faqat siz tanlagan bemorlarni Telegram kanaliga yuborish">
+                            📤 Tanlanganlarni Telegramga (<span id="selected-count">0</span>)
                         </button>
                         <button class="btn btn-sm btn-secondary" onclick="syncAllCT()" id="btn-sync-ct" title="KT apparatidagi barcha 727+ bemorlarni to'liq tekshirish va ro'yxatga olish">
-                            🔄 KT bilan sinxronlash (727 ta)
+                            🔄 KT bilan sinxronlash
                         </button>
                         <button class="btn btn-sm btn-refresh" onclick="loadStudies()">🔄 Yangilash</button>
                     </div>

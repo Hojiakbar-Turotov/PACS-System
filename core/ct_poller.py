@@ -14,7 +14,7 @@ from core.database import get_connection, log_event
 
 logger = logging.getLogger("CT_POLLER")
 
-def retrieve_study_from_ct(study_instance_uid: str, send_telegram: bool = True) -> bool:
+def retrieve_study_from_ct(study_instance_uid: str, send_telegram: bool = False) -> bool:
     """GE CT apparatidan belgilangan tekshiruvni C-MOVE orqali PACS serverga tortib olish"""
     try:
         from core.processor import set_retrieval_intent
