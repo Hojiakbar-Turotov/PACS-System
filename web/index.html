@@ -156,12 +156,16 @@
                         <div style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
                             <span style="font-weight: 600; color: #475569;">🔃 Saralash:</span>
                             <select id="filter-sort-by" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0;" onchange="handleSortChange(this.value)">
-                                <option value="DATE_DESC">Sana (eng yangilar oldinda)</option>
-                                <option value="DATE_ASC">Sana (eskilar oldinda)</option>
-                                <option value="NAME_ASC">Bemor F.I.Sh (A - Z)</option>
-                                <option value="NAME_DESC">Bemor F.I.Sh (Z - A)</option>
-                                <option value="INSTANCES_DESC">Kadrlar soni (ko'pdan kamga)</option>
-                                <option value="INSTANCES_ASC">Kadrlar soni (kamdan ko'pga)</option>
+                                <option value="DATE_DESC">📅 Sana (eng yangilar oldinda)</option>
+                                <option value="DATE_ASC">📅 Sana (eskilar oldinda)</option>
+                                <option value="QUEUE_ORDER_ASC">⚡ Jarayon & Navbat: Faol va navbatdagilar (#1, #2...)</option>
+                                <option value="NAME_ASC">🔤 Bemor F.I.Sh (A - Z)</option>
+                                <option value="NAME_DESC">🔤 Bemor F.I.Sh (Z - A)</option>
+                                <option value="PATIENT_ID_ASC">🆔 Bemor ID (A - Z)</option>
+                                <option value="PATIENT_ID_DESC">🆔 Bemor ID (Z - A)</option>
+                                <option value="INSTANCES_DESC">🎞️ Kadrlar soni (ko'pdan kamga)</option>
+                                <option value="INSTANCES_ASC">🎞️ Kadrlar soni (kamdan ko'pga)</option>
+                                <option value="LOCAL_STORAGE_DESC">💾 Mahalliy nusxa (Serverda borlar oldinda)</option>
                             </select>
                             <button class="btn btn-sm btn-secondary" onclick="resetAllFilters()" style="padding: 5px 9px;" title="Barcha filtrlarni tozalash">🔄 Tozalash</button>
                         </div>
@@ -200,14 +204,28 @@
                                 <th style="width: 38px; text-align: center;">
                                     <input type="checkbox" id="select-all-studies" onchange="toggleSelectAllStudies(this)" title="Barchasini tanlash">
                                 </th>
-                                <th>Sana & Vaqt</th>
-                                <th>Bemor ID</th>
-                                <th>Bemor F.I.Sh</th>
-                                <th>Tekshiruv</th>
-                                <th>Kadrlar</th>
-                                <th>Mahalliy Nusxa (D: disk)</th>
-                                <th>Telegram Holati & Jarayon</th>
-                                <th>Amallar</th>
+                                <th class="sortable-th active-sort" id="th-col-DATE" onclick="handleColumnSort('DATE')" title="Sana va vaqt bo'yicha saralash">
+                                    Sana & Vaqt <span class="sort-icon" id="sort-icon-DATE">▼</span>
+                                </th>
+                                <th class="sortable-th" id="th-col-PATIENT_ID" onclick="handleColumnSort('PATIENT_ID')" title="Bemor ID bo'yicha saralash">
+                                    Bemor ID <span class="sort-icon" id="sort-icon-PATIENT_ID">⇅</span>
+                                </th>
+                                <th class="sortable-th" id="th-col-PATIENT_NAME" onclick="handleColumnSort('PATIENT_NAME')" title="Bemor F.I.Sh bo'yicha saralash">
+                                    Bemor F.I.Sh <span class="sort-icon" id="sort-icon-PATIENT_NAME">⇅</span>
+                                </th>
+                                <th class="sortable-th" id="th-col-STUDY_DESC" onclick="handleColumnSort('STUDY_DESC')" title="Tekshiruv sohasi bo'yicha saralash">
+                                    Tekshiruv <span class="sort-icon" id="sort-icon-STUDY_DESC">⇅</span>
+                                </th>
+                                <th class="sortable-th" id="th-col-INSTANCES" onclick="handleColumnSort('INSTANCES')" title="Kadrlar soni bo'yicha saralash">
+                                    Kadrlar <span class="sort-icon" id="sort-icon-INSTANCES">⇅</span>
+                                </th>
+                                <th class="sortable-th" id="th-col-LOCAL_STORAGE" onclick="handleColumnSort('LOCAL_STORAGE')" title="Serverdagi nusxa bo'yicha saralash">
+                                    Mahalliy Nusxa (D: disk) <span class="sort-icon" id="sort-icon-LOCAL_STORAGE">⇅</span>
+                                </th>
+                                <th class="sortable-th" id="th-col-QUEUE_ORDER" onclick="handleColumnSort('QUEUE_ORDER')" title="Jarayon va navbat tartibi bo'yicha saralash (#1, #2... oldinda)">
+                                    Telegram Holati & Jarayon <span class="sort-icon" id="sort-icon-QUEUE_ORDER">⇅</span>
+                                </th>
+                                <th style="min-width: 170px;">Amallar</th>
                             </tr>
                         </thead>
                         <tbody id="studies-tbody">

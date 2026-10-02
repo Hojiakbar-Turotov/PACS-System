@@ -397,4 +397,12 @@ D:\PACS\
 7. **DICOM Import Moduli Xatolari Tuzatildi:**
    - Modal oyna ochilmaslik sababi (`.active` klassi va CSS qatlamlari) bartaraf etildi.
    - Papka ichidagi barcha ichki yo'llarni (subfolderlarni) xavfsiz qabul qilish ta'minlandi.
+8. **Jadval Ustunlari Bo'yicha Saralash va Jarayon Navbati Tartibi (Column Sorting & Live Queue Order):**
+   - Barcha 7 ta asosiy jadval ustunlari (`Sana & Vaqt`, `Bemor ID`, `Bemor F.I.Sh`, `Tekshiruv`, `Kadrlar`, `Mahalliy Nusxa`, `Telegram Holati & Jarayon`) bosiluvchi (interactive sortable) qilindi.
+   - Har bir ustunda saralash holati piktogrammalari (`▲` o'sish, `▼` kamayish, `⇅` neytral) va vizual faol fon belgilandi.
+   - **Jarayon va Navbat Ustuvorlik Tartibi (`QUEUE_ORDER`):**
+     - Ayni damda faol bajarilayotgan barcha jarayonlar eng birinchi o'ringa olib chiqiladi (`UPLOADING_TG` -> `ARCHIVING` -> `DOWNLOADING_CT` -> `DOWNLOADING_TG`).
+     - Navbatdagi bemorlar qat'iy FIFO navbat tartib raqami (`#1`, `#2`, `#3`, ...) bo'yicha ketma-ketlikda saralanadi.
+     - `⚡ Jarayonda` filtri tanlanganda yoki `Telegram Holati & Jarayon` ustuni bosilganda jadval avtomatik ravishda ushbu navbat ketma-ketligiga o'tadi.
+     - Jonli monitoring (polling) vaqtida vazifalar o'zaro o'rin almashganda jadval real vaqt rejimida avtomatik qayta tartiblanib boradi.
 

@@ -947,3 +947,37 @@ body {
     margin: 4px 0;
 }
 
+/* JADVAL USTUNLARI SARALASH (SORTABLE TABLE HEADERS) */
+.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+    position: relative;
+}
+
+.sortable-th:hover {
+    background-color: #f1f5f9;
+    color: #0284c7;
+}
+
+.sortable-th.active-sort {
+    background-color: #e0f2fe !important;
+    color: #0369a1 !important;
+    font-weight: 700;
+}
+
+.sort-icon {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    vertical-align: middle;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.sortable-th.active-sort .sort-icon {
+    color: #0284c7;
+    font-weight: 800;
+}
+

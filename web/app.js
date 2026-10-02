@@ -161,6 +161,100 @@ function toggleSelectAllStudies(masterCheckbox) {
 let currentDatePreset = 'ALL';
 let currentExamFilter = 'ALL';
 let currentSortBy = 'DATE_DESC';
+let currentSortColumn = 'DATE';
+let currentSortDirection = 'DESC'; // 'ASC' yoki 'DESC'
+
+// Har bir bemorning jarayon va navbat ustuvorlik ballini hisoblash
+function getStudyQueueScore(s) {
+    const stage = s.active_stage || s.progress_stage || '';
+    const text = s.active_text || s.progress_text || '';
+
+    // 1. Faol ishlayotgan jarayonlar (eng yuqori ustuvorlik)
+    if (stage === 'UPLOADING_TG') return 10;   // Telegramga yuklanmoqda
+    if (stage === 'ARCHIVING') return 20;      // ZIP qilinmoqda
+    if (stage === 'DOWNLOADING_CT') return 30; // KT apparatidan yuklanmoqda
+    if (stage === 'DOWNLOADING_TG') return 40; // Telegramdan yuklab olinmoqda
+    if (s.telegram_status === 'SENDING' || s.telegram_status === 'RETRIEVING') return 45;
+
+    // 2. Navbatda kutayotganlar: #1, #2, #3 tartib raqami bo'yicha
+    let pos = 999;
+    const match = text.match(/#(\d+)/);
+    if (match) {
+        pos = parseInt(match[1], 10) || 999;
+    }
+
+    // Telegram navbatidagilar (#1 -> 101, #2 -> 102...)
+    if (stage === 'QUEUED_TG') return 100 + pos;
+    // ZIP navbatidagilar (#1 -> 301, #2 -> 302...)
+    if (stage === 'QUEUED_ARCHIVE') return 300 + pos;
+    // KT navbatidagilar (#1 -> 501, #2 -> 502...)
+    if (stage === 'QUEUED_CT') return 500 + pos;
+
+    // 3. Navbatda bo'lmagan boshqa holatlar
+    if (s.telegram_status === 'FAILED') return 1000;
+    if (s.telegram_status === 'PENDING') return 2000;
+    if (s.telegram_status === 'ON_CT_DEVICE') return 3000;
+    if (s.telegram_status === 'SENT') return 4000;
+
+    return 5000;
+}
+
+// Jadval sarlavhasi (TH) belgilari va faolligini yangilash
+function updateTableHeaderSortIcons() {
+    const columns = ['DATE', 'PATIENT_ID', 'PATIENT_NAME', 'STUDY_DESC', 'INSTANCES', 'LOCAL_STORAGE', 'QUEUE_ORDER'];
+    columns.forEach(col => {
+        const th = document.getElementById(`th-col-${col}`);
+        const icon = document.getElementById(`sort-icon-${col}`);
+        if (th) {
+            if (col === currentSortColumn) {
+                th.classList.add('active-sort');
+                if (icon) {
+                    icon.innerText = (currentSortDirection === 'ASC') ? '▲' : '▼';
+                    icon.style.color = '#0284c7';
+                }
+            } else {
+                th.classList.remove('active-sort');
+                if (icon) {
+                    icon.innerText = '⇅';
+                    icon.style.color = '#94a3b8';
+                }
+            }
+        }
+    });
+}
+
+// Ustun sarlavhasini bosganda saralash (Column click sorting)
+function handleColumnSort(colKey) {
+    if (currentSortColumn === colKey) {
+        // Bir xil ustun qayta bosilsa yo'nalishni almashtirish
+        currentSortDirection = (currentSortDirection === 'ASC') ? 'DESC' : 'ASC';
+    } else {
+        currentSortColumn = colKey;
+        // Boshlang'ich optimal yo'nalish
+        if (colKey === 'DATE' || colKey === 'INSTANCES' || colKey === 'LOCAL_STORAGE') {
+            currentSortDirection = 'DESC';
+        } else if (colKey === 'QUEUE_ORDER') {
+            currentSortDirection = 'ASC'; // Navbatda #1 eng oldinda chiqishi uchun
+        } else {
+            currentSortDirection = 'ASC'; // Nom, ID, Tekshiruv A-Z
+        }
+    }
+
+    currentSortBy = `${currentSortColumn}_${currentSortDirection}`;
+
+    // Select dropdownni yangilash
+    const sortSelect = document.getElementById('filter-sort-by');
+    if (sortSelect) {
+        if (sortSelect.querySelector(`option[value="${currentSortBy}"]`)) {
+            sortSelect.value = currentSortBy;
+        } else if (sortSelect.querySelector(`option[value="${currentSortColumn}_ASC"]`)) {
+            sortSelect.value = `${currentSortColumn}_ASC`;
+        }
+    }
+
+    currentStudyPage = 1;
+    applyStudyFilters();
+}
 
 function populateExamFilterOptions() {
     const examSelect = document.getElementById('filter-exam-select');
@@ -193,6 +287,22 @@ function handleDatePresetChange(val) {
 
 function handleSortChange(val) {
     currentSortBy = val;
+    if (val.includes('_')) {
+        const lastUnderscore = val.lastIndexOf('_');
+        const dir = val.substring(lastUnderscore + 1);
+        const col = val.substring(0, lastUnderscore);
+        if (dir === 'ASC' || dir === 'DESC') {
+            currentSortColumn = col;
+            currentSortDirection = dir;
+        } else {
+            currentSortColumn = val;
+            currentSortDirection = 'ASC';
+        }
+    } else {
+        currentSortColumn = val;
+        currentSortDirection = 'ASC';
+    }
+    currentStudyPage = 1;
     applyStudyFilters();
 }
 
@@ -202,6 +312,8 @@ function resetAllFilters() {
     currentDatePreset = 'ALL';
     currentExamFilter = 'ALL';
     currentSortBy = 'DATE_DESC';
+    currentSortColumn = 'DATE';
+    currentSortDirection = 'DESC';
 
     const searchInput = document.getElementById('study-search-input');
     if (searchInput) searchInput.value = '';
@@ -267,6 +379,16 @@ function setStudyFilter(filterKey, buttonElem) {
     currentStudyPage = 1;
     document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
     if (buttonElem) buttonElem.classList.add('active');
+
+    // Agar "Jarayonda" tanlansa, avtomatik tarzda jarayon va navbat tartibiga o'tkazish
+    if (filterKey === 'IN_PROGRESS') {
+        currentSortColumn = 'QUEUE_ORDER';
+        currentSortDirection = 'ASC';
+        currentSortBy = 'QUEUE_ORDER_ASC';
+        const sortSelect = document.getElementById('filter-sort-by');
+        if (sortSelect) sortSelect.value = 'QUEUE_ORDER_ASC';
+    }
+
     applyStudyFilters();
 }
 
@@ -330,8 +452,66 @@ function applyStudyFilters() {
         return true;
     });
 
-    // Sorting
+    // Jadval ustunlari piktogrammalarini yangilash
+    updateTableHeaderSortIcons();
+
+    // Saralash (Sorting)
     filteredStudies.sort((a, b) => {
+        const dir = (currentSortDirection === 'DESC') ? -1 : 1;
+
+        if (currentSortColumn === 'QUEUE_ORDER') {
+            const scoreA = getStudyQueueScore(a);
+            const scoreB = getStudyQueueScore(b);
+            if (scoreA !== scoreB) {
+                return (scoreA - scoreB) * dir;
+            }
+            // Agar jarayon/navbat bir xil bo'lsa, yangi sanalilar oldinda
+            return String(b.study_date || '').localeCompare(String(a.study_date || '')) ||
+                   String(b.study_time || '').localeCompare(String(a.study_time || ''));
+        }
+
+        if (currentSortColumn === 'DATE') {
+            const comp = String(a.study_date || '').localeCompare(String(b.study_date || '')) ||
+                         String(a.study_time || '').localeCompare(String(b.study_time || ''));
+            return comp * dir;
+        }
+
+        if (currentSortColumn === 'PATIENT_ID') {
+            const idA = String(a.patient_id || '').toLowerCase();
+            const idB = String(b.patient_id || '').toLowerCase();
+            return idA.localeCompare(idB) * dir;
+        }
+
+        if (currentSortColumn === 'PATIENT_NAME') {
+            const nameA = String(a.patient_name || '').toLowerCase();
+            const nameB = String(b.patient_name || '').toLowerCase();
+            return nameA.localeCompare(nameB) * dir;
+        }
+
+        if (currentSortColumn === 'STUDY_DESC') {
+            const descA = String(a.study_description || '').toLowerCase();
+            const descB = String(b.study_description || '').toLowerCase();
+            return descA.localeCompare(descB) * dir;
+        }
+
+        if (currentSortColumn === 'INSTANCES') {
+            const cntA = Number(a.instances_count) || 0;
+            const cntB = Number(b.instances_count) || 0;
+            return (cntA - cntB) * dir;
+        }
+
+        if (currentSortColumn === 'LOCAL_STORAGE') {
+            const hasA = a.has_local_copy ? 1 : 0;
+            const hasB = b.has_local_copy ? 1 : 0;
+            if (hasA !== hasB) {
+                return (hasA - hasB) * dir;
+            }
+            const sizeA = Number(a.archive_size_bytes) || 0;
+            const sizeB = Number(b.archive_size_bytes) || 0;
+            return (sizeA - sizeB) * dir;
+        }
+
+        // Qadimgi fallback saralashlar
         if (currentSortBy === 'DATE_DESC') {
             return String(b.study_date || '').localeCompare(String(a.study_date || '')) || String(b.study_time || '').localeCompare(String(a.study_time || ''));
         } else if (currentSortBy === 'DATE_ASC') {
@@ -716,7 +896,11 @@ async function checkActiveProgresses() {
         updateFilterCounts();
 
         if (hasActiveTasks) {
-            renderStudiesTable();
+            if (currentSortColumn === 'QUEUE_ORDER') {
+                applyStudyFilters();
+            } else {
+                renderStudiesTable();
+            }
             if (!activeProgressPollTimer) {
                 activeProgressPollTimer = setInterval(checkActiveProgresses, 800);
             }
