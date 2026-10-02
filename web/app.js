@@ -288,8 +288,7 @@ function applyStudyFilters() {
         // Status pill filter
         if (currentStudyFilter === 'IN_PROGRESS') {
             if (!isStudyInProgress(s)) return false;
-        }
-} else if (currentStudyFilter === 'LOCAL_STORED') {
+        } else if (currentStudyFilter === 'LOCAL_STORED') {
             if (!s.has_local_copy) return false;
         } else if (currentStudyFilter === 'ON_CT_DEVICE') {
             if (s.telegram_status !== 'ON_CT_DEVICE') return false;
