@@ -1,0 +1,136 @@
+# BAJARILGAN ISHLAR VA TEKSHIRUVLAR JURNALI (READ.ME)
+# ==============================================================================
+# LOYIHA: Sabadarmon MSKT PACS & Telegram Arxivlash
+# SANA: 02.10.2026
+# ==============================================================================
+
+## 1. Tarmoq va Ulanishlar Tekshiruvi
+- [x] **Mahalliy kompyuter tarmoq konfiguratsiyasi o'rganildi:**
+  - Ushbu kompyuterning Ethernet interfeysida 2 ta statik IP manzil mavjudligi aniqlandi:
+    - `192.168.10.249/24`
+    - `192.168.10.100/24`
+- [x] **GE Healthcare CT apparati bilan aloqa tekshirildi:**
+  - Manzil: `192.168.10.250:4006` (AE Title: `CT01`)
+  - TCP Ping testi: **Muvaffaqiyatli (`TcpTestSucceeded: True`)**.
+  - DICOM C-ECHO (Verifikatsiya) testi: **Status 0 (Success)** qaytdi.
+  - GE CT dan bemorlar ro'yxatini C-FIND orqali to'g'ridan-to'g'ri o'qib olish testi muvaffaqiyatli o'tdi!
+
+## 2. GE CT dan Haqiqiy Bemor Qabul Qilindi va Arxivlandi
+- [x] **Haqiqiy tekshiruv qabul qilindi:**
+  - GE CT apparatidan `SODIQOV A` (ID: `122106`) nomli bemorning 556 ta KT kesimi qabul qilindi.
+  - Tizim 100.8 MB li to'liq ZIP arxivini yaratdi, diagnostik JPG prevyusini hosil qildi.
+  - Telegram kanaliga (`-1004295879936`) muvaffaqiyatli yetkazildi (Message ID: 7).
+
+## 3. Yangi Funksiyalar (Talab Asosida Amalga Oshirildi):
+- [x] **1. Jonli DICOM Monitoring:**
+  - Veb-panelda alohida "📡 Jonli Monitoring" bo'limi yaratildi.
+  - GE CT dan keladigan har bir ulanish (IP, port, Calling AE, C-FIND so'rovi parametrlari, C-STORE kadrlari) soniyama-soniya ko'rsatib boriladi.
+- [x] **2. KT Qurilmasini Avtomatik Skanerlash (CT Poller):**
+  - Fon xizmati har 20 soniyada GE CT apparatiga C-FIND so'rovi yuborib, bugungi barcha bemorlarni o'qiydi.
+- [x] **3. Bemor Manbasini Ajratish (Origin Tracking):**
+  - Web orqali kiritilgan bemorlar: `🌐 Tizim (Web) orqali` (Ko'k badge);
+  - KT konsolida to'g'ridan-to'g'ri kiritilgan bemorlar: `⚠️ KT Konsolida kiritilgan` (Sariq badge);
+  - KT da yangi bemor paydo bo'lganda ekranning yuqori qismida sariq ogohlantirish banneri chiqadi.
+
+## 4. Bemorlar Arxivlash va Storage Commitment (Archive Node)
+- [x] **Haqiqiy tekshiruvlar to'liq avtomat uzatildi:**
+  - `SODIQOV A` (556 kadr, 100.8 MB) -> Telegramga yuborildi.
+  - `RASULOV ALIMUROD` (532 kadr, 96.4 MB) -> 3 qismga bo'linib Telegramga yuborildi.
+  - `KUCHKOROVA MUBORAK` (429 kadr, 78.3 MB) -> 2 qismga bo'linib Telegramga yuborildi.
+- [x] **GE CT "Archive Node" (Storage Commitment Push Model) qo'shildi:**
+  - `StorageCommitmentPushModel` (`1.2.840.10008.1.20.1`) va `N-ACTION` handleri faollashtirildi.
+  - Server qayta ishga tushirildi va sinovdan o'tkazildi (C-ECHO + Storage Commitment ikkalasi ham qabul qilinmoqda).
+
+## 5. MTProto 2 GB Yagona ZIP Yuklash va Yangilanishlar (02.10.2026)
+- [x] **MTProto orqali bitta butun ZIP fayl yuborish (2 GB gacha):**
+  - Telegram Desktop rasmiy MTProto mijozi ulandi.
+  - `cryptg` C-tezlatgichi o'rnatildi (AES-IGE shifrlash 50x tezlashdi).
+  - 100 MB li katta fayllar ham bo'laklarga bo'linmasdan, **bitta yaxlit ZIP arxiv** sifatida muvaffaqiyatli yetkazildi (`RASULOV ALIMUROD` 96.4 MB fayli sinovdan o'tkazildi).
+- [x] **Takroriy Yuborishni Oldini Olish (Deduplication & Change Detection):**
+  - Bazaga `last_sent_instances` ustuni qo'shildi.
+  - Agar bemor tekshiruvi oldin yuborilgan bo'lsa va kadrlar soni o'zgarmagan bo'lsa, qayta yuborilmaydi.
+  - Agar yangi kadrlar qo'shilgan bo'lsa (masalan, 500 dan 532 ga oshsa), avtomatik `🔄 Yangilandi` belgisi bilan Telegramga qayta yuboriladi.
+- [x] **Format va Formatlash O'zgartirildi:**
+  - Diagnostik kesim prevyu rasmi yuborilishi to'xtatildi.
+  - Ma'lumotlar to'g'ridan-to'g'ri ZIP arxiv ostidagi izohga yozildi.
+  - Sana formati o'zbek tiliga o'tkazildi: `02-oktabr 2026`.
+  - Format talabga muvofiq qisqartirildi:
+    ```text
+    👤 Bemor: RASULOV ALIMUROD
+    🆔 ID: 102099
+    📅 Sana: 02-oktabr 2026
+    (🔬 Tekshiruv: ...)
+    ```
+- [x] **Veb-panelda Bir Nechta Bemorlarni Belgilash va Yuborish:**
+  - "Arxiv va Telegram" jadvalida har bir qatorda katakchalar (checkbox) va jadval boshida "Barchasini tanlash" qo'shildi.
+  - Yuqori qismda **"📤 Tanlanganlarni Telegramga yuborish (N)"** tugmasi yaratildi.
+  - Bir vaqtning o'zida bir nechta bemor tekshiruvini tanlab, orqa fonda Telegramga navbat bilan yuborish imkoniyati berildi.
+
+## 6. GE CT dagi 727 ta Tarixiy Bemorlar va Tezkor Yuklash (02.10.2026)
+- [x] **727 ta Bemor To'liq Sinxronlandi:**
+  - GE CT apparatidan (`192.168.10.250:4006`) barcha tarixiy 727 ta bemor DICOM C-FIND orqali qabul qilinib, `studies` bazasiga kiritildi.
+  - Apparatdagi bemorlar statusi: `💾 KT Qurilmada` (`ON_CT_DEVICE`).
+- [x] **Ikki tomonlama Qidiruv va Yuklab Olish (DICOM C-MOVE):**
+  - Foydalanuvchi veb-paneldan bir yoki bir nechta bemorni tanlab "📤 Telegram" yoki "📥 Yuklab olish & Telegram" tugmasini bosganda, PACS server GE CT apparatiga avtomatik C-MOVE so'rovi yuboradi.
+  - GE CT rasmlarni PACS serverga oqim shaklida uzatadi, tizim ularni bir zumda ZIP qilib Telegram kanaliga jo'natadi.
+- [x] **Telegram Yuklash Tezligi 5x-10x Oshirildi:**
+  - Telethon uchun C tilida yozilgan `cryptg-0.6.0` (AES-IGE) va ko'p tarmoqli parallel yuklovchi `FastTelethonhelper-1.0.7` integratsiya qilindi.
+  - Yuklash vaqti ~4.5 daqiqadan ~45-55 soniyaga tushirildi (o'rtacha 1.8 - 2.5 MB/s).
+  - ZIP yaratish tezligi `compresslevel=1` orqali 3 barobar tezlashtirildi.
+- [x] **Veb-panel Qidiruv, Filtr va Sahifalash:**
+  - 728 ta tekshiruv bo'yicha F.I.Sh, Bemor ID yoki sana bo'yicha jonli qidiruv qo'shildi.
+  - Filtr tugmalari: `Barchasi (728)`, `💾 KT Qurilmasida (721)`, `✅ Yuborilganlar (6)`, `⏳ Kutilmoqda`.
+  - Sahifalash (50 tadan) orqali interfeys qotmasdan, silliq va chaqqon ishlaydi.
+
+## 7. Jonli Progress, 30 Kunlik Saqlash, Modal Boxlar va UI Soddalashtirish (02.10.2026)
+- [x] **Jonli Dinamik Progress va Foizlar:**
+  - `core/progress_tracker.py` moduli yaratildi.
+  - KT dan yuklanayotganda kadrlar soni va foizi real vaqtda ko'rsatiladi: `📥 KT dan yuklanmoqda: 45% (180/400 kadr)`.
+  - Telegramga uzatilayotganda uzatilgan megabaytlar va foiz aks etadi: `📤 Telegramga yuklanmoqda: 65% (58.2/89.5 MB)`.
+  - Veb-panel har 1.2 soniyada avto-yangilanib, animatsiyali progress-bar ko'rsatadi.
+- [x] **Mahalliy Xotirada Saqlanish Holati (Server Copy Indicator):**
+  - Jadvalga yangi "Mahalliy Nusxa (D: disk)" ustuni qo'shildi:
+    - `💾 Serverda (96.4 MB)` + `(29 kun qoldi)` (yashil nishon)
+    - `☁️ Faqat KT da` (binafsharang nishon).
+- [x] **30 Kunlik Saqlash Muddati va Avtomatik Tozalash (Retention Policy):**
+  - `core/retention_manager.py` xizmati fonda faol ishlaydi.
+  - KT apparatidan yuklab olinganidan boshlab 30 kun davomida kompyuterda to'liq saqlanadi. 30 kundan so'ng og'ir DICOM/ZIP fayllar diskni to'ldirmaslik uchun avtomatik tozalanadi, lekin bemor qaydi bazada saqlanadi.
+- [x] **Yengil Markaziy Modal Boxlar (Brauzer Alert/Confirm o'rniga):**
+  - Standart qotib qoluvchi `alert()` va `confirm()` butunlay olib tashlandi.
+  - O'rniga silliq animatsiyali markaziy oyna yaratildi. Agar oyna yoniga (fonga) bosilsa, darhol yopiladi.
+- [x] **Interfeysni Yengillashtirish va Tartibga Solish:**
+  - Tizim loglari va DICOM monitoring yagona "Tizim Loglari" oynasiga birlashtirildi.
+  - "Yangi Bemor" oynasi yashirildi (bemorlar to'g'ridan-to'g'ri KT konsolida ro'yxatga olinadi).
+  - Bugungi navbat oynasi alohida manzilga ko'chirildi: `http://localhost:8000/list`.
+  - Asosiy boshqaruv panelida faqat Arxiv & Telegram hamda Tizim Loglari qoldirildi.
+- [x] **Test Bemorlar Tozalandi:**
+  - `P-1518` (Toshmatov Ali) va `12111` (Almardon test) bazadan butunlay o'chirildi. Hozirda faqat KT apparatidagi 727 ta haqiqiy bemor mavjud.
+- [x] **Git Repositoriy:**
+  - Butun loyiha kodi va tuzilmasi Git reposiga kommit qilindi (`3a2d283`).
+
+## 8. Mustaqil Ishlash, Windows Avtostart, Sozlamalar va Portativ Paket (02.10.2026)
+- [x] **SQLite Qulflanishi (Database is Locked) Tuzatildi:**
+  - `PRAGMA journal_mode=WAL;` va `PRAGMA busy_timeout=30000;` yoqildi.
+  - Jonli progress yangilanishlarida bazaga yozish tejamkor (throttled) qilindi. Xatoliklar butunlay bartaraf etildi.
+- [x] **Yuklash Tezligi MB/s da Ko'rsatildi:**
+  - Jonli yuklash jarayonida har soniyadagi real tezlik `MB/s` da aniq hisoblab boriladi: `📤 Telegramga yuklanmoqda: 45% (40.5/90.0 MB) • 1.9 MB/s`.
+  - KT dan yuklanayotganda ham tezlik aks ettiriladi: `📥 KT dan yuklanmoqda: 60% (300/500 kadr) • 12.5 MB/s`.
+- [x] **Yuklab Olish va Telegramga Yuborish Amallari Ajratildi:**
+  - `📥 Serverga` — tasvirlarni faqat KT apparatidan ushbu kompyuterga ko'chiradi va arxivlaydi (Telegramga yubormaydi).
+  - `📤 Telegram` — tekshiruvni Telegram kanaliga yuboradi.
+- [x] **RadiAnt Ochish Tuzatildi:**
+  - Serverda mavjud tekshiruvlar uchun `🔍 RadiAnt` tugmasi DICOM papkasini yoki ZIP arxivini to'g'ridan-to'g'ri RadiAntViewer'da ochadi.
+  - Agar tekshiruv faqat KT apparatida bo'lsa, foydalanuvchiga avval serverga yuklab olishni qulay tarzda taklif qiladi.
+- [x] **Interfeysdan IP va Portlarni Sozlash ("⚙️ Sozlamalar"):**
+  - Veb-panel yuqori o'ng burchagida "⚙️ Sozlamalar" tugmasi qo'shildi.
+  - GE CT IP, port, AE title, PACS port, Web port va Telegram parametrlarini brauzer orqali dinamik o'zgartirish imkoniyati yaratildi (`data/settings.json`).
+- [x] **Windows Bilan Birga Ishga Tushish va Kompyuter O'chganda To'xtash:**
+  - `PACS_System.exe` mustaqil dasturi yaratildi.
+  - Dastur ishga tushirilishi bilanoq Windows reestriga (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) yoziladi.
+  - Kompyuter yoqilganda PACS server avtomatik ravishda orqa fonda ishga tushadi, kompyuter o'chirilganda esa xavfsiz to'xtaydi.
+  - Antigravity IDE yopilganda ham tizim 24/7 uzluksiz ishlayveradi.
+- [x] **Portativ ZIP Paketi:**
+  - Boshqa kompyuterga ko'chirish uchun `D:\PACS\PACS_System_Portable.zip` va `Install_And_Run.bat` fayli tayyorlandi.
+
+
+

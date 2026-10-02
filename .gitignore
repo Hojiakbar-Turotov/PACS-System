@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+storage/
+archives/
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+telegram/session/*.session-journal
+*.log

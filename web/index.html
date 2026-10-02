@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sabadarmon MSKT — PACS & Arxiv Tizimi</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo-section">
+                <div class="logo-icon">🏥</div>
+                <div>
+                    <h1>Sabadarmon MSKT</h1>
+                    <span class="subtitle">Avtomatlashtirilgan PACS va Telegram Arxivlash Tizimi</span>
+                </div>
+            </div>
+            <div class="status-badges">
+                <div class="badge" id="ct-status-badge">
+                    <span class="dot yellow"></span> KT Apparati: <strong id="ct-status-text">Tekshirilmoqda...</strong>
+                </div>
+                <div class="badge">
+                    <span class="dot green"></span> PACS Port: <strong id="pacs-port-text">11112 (RADIANT)</strong>
+                </div>
+                <div class="badge">
+                    💾 D Disk: <strong id="disk-free-text">...</strong>
+                </div>
+                <button class="btn btn-sm btn-secondary" onclick="openSettingsModal()" style="display: flex; align-items: center; gap: 6px; font-weight: 600; padding: 7px 14px; border-radius: 8px;" title="Tizim tarmoq va port sozlamalari">
+                    ⚙️ Sozlamalar
+                </button>
+            </div>
+        </header>
+
+        <!-- SARIQ BILDIRISHNOMA (KT QURILMASIDAN RO'YXATDAN O'TGANLAR UCHUN) -->
+        <div id="ct-direct-alert" class="alert-banner" style="display: none;">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+                <strong>Diqqat! KT Qurilmasida yangi bemor ro'yxatga olindi:</strong>
+                <span id="ct-direct-patient-text"></span>
+            </div>
+            <button class="alert-close" onclick="closeAlert()">✕</button>
+        </div>
+
+        <!-- NAVIGATION TABS -->
+        <nav class="nav-tabs" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+                <button class="tab-btn active" onclick="switchTab('studies-archive')">📦 Arxiv va Telegram (<span id="archive-count">0</span>)</button>
+                <button class="tab-btn" onclick="switchTab('system-logs')">⚙️ Tizim Loglari</button>
+            </div>
+            <div>
+                <a href="/list" class="nav-link-btn" title="Bugungi navbatdagi bemorlar (Worklist)">
+                    📋 Bugungi Navbat (/list) ↗
+                </a>
+            </div>
+        </nav>
+
+        <!-- TAB 1: ARXIV VA TELEGRAM JURNALI -->
+        <main id="tab-studies-archive" class="tab-content active">
+            <div class="card">
+                <div class="table-header">
+                    <h2>Yakunlangan Tekshiruvlar va Telegram Arxiv Jurnali</h2>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-sm btn-primary" id="btn-batch-telegram" onclick="resendSelectedStudies()" disabled>
+                            📤 Tanlanganlarni Telegramga yuborish (<span id="selected-count">0</span>)
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="syncAllCT()" id="btn-sync-ct" title="KT apparatidagi barcha 727+ bemorlarni to'liq tekshirish va ro'yxatga olish">
+                            🔄 KT bilan sinxronlash (727 ta)
+                        </button>
+                        <button class="btn btn-sm btn-refresh" onclick="loadStudies()">🔄 Yangilash</button>
+                    </div>
+                </div>
+
+                <!-- QIDIRUV VA STATUS FILTERLARI -->
+                <div class="filter-container">
+                    <input type="text" id="study-search-input" class="search-input" placeholder="🔍 Bemor F.I.Sh yoki ID raqami bo'yicha tezkor qidiruv..." oninput="handleStudySearch(this.value)">
+                    <div class="filter-pills">
+                        <button class="filter-pill active" onclick="setStudyFilter('ALL', this)">Barchasi (<span id="filter-all-count">0</span>)</button>
+                        <button class="filter-pill" onclick="setStudyFilter('ON_CT_DEVICE', this)">💾 KT Qurilmasida (<span id="filter-ct-count">0</span>)</button>
+                        <button class="filter-pill" onclick="setStudyFilter('SENT', this)">✅ Yuborilganlar (<span id="filter-sent-count">0</span>)</button>
+                        <button class="filter-pill" onclick="setStudyFilter('PENDING', this)">⏳ Kutilmoqda (<span id="filter-pending-count">0</span>)</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 38px; text-align: center;">
+                                    <input type="checkbox" id="select-all-studies" onchange="toggleSelectAllStudies(this)" title="Barchasini tanlash">
+                                </th>
+                                <th>Sana & Vaqt</th>
+                                <th>Bemor ID</th>
+                                <th>Bemor F.I.Sh</th>
+                                <th>Tekshiruv</th>
+                                <th>Kadrlar</th>
+                                <th>Mahalliy Nusxa (D: disk)</th>
+                                <th>Telegram Holati & Jarayon</th>
+                                <th>Amallar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studies-tbody">
+                            <tr><td colspan="9" class="text-center">Yuklanmoqda...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- PAGINATION BOSHQARUVI -->
+                <div class="pagination-controls">
+                    <div>
+                        Ko'rsatilmoqda: <strong id="pagination-info">0 - 0</strong> / Jami: <strong id="pagination-total">0</strong> ta tekshiruv
+                    </div>
+                    <div class="pagination-buttons">
+                        <button class="page-btn" id="btn-page-prev" onclick="changeStudyPage(-1)" disabled>◀ Oldingi</button>
+                        <span style="font-weight: 600;" id="page-num-display">1 / 1</span>
+                        <button class="page-btn" id="btn-page-next" onclick="changeStudyPage(1)" disabled>Keyingi ▶</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 2: TIZIM LOGLARI VA MONITORING -->
+        <main id="tab-system-logs" class="tab-content">
+            <div class="card">
+                <div class="table-header">
+                    <h2>📡 Tizim Xabarlari va DICOM Hodisalar Logi</h2>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="live-pulse"></span> <strong>Jonli monitoring</strong>
+                        <button class="btn btn-sm btn-refresh" onclick="loadLogs()">🔄 Yangilash</button>
+                    </div>
+                </div>
+                <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 15px;">
+                    KT apparatidan kelayotgan ulanishlar, C-MOVE va C-STORE signallari, Telegram yuklashlari hamda tizim faoliyati shu yerda aks etadi.
+                </p>
+                <div class="logs-container monitor-terminal" id="logs-container">
+                    <div class="log-entry SYSTEM">Tizim loglari yuklanmoqda...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- CUSTOM LIGHTWEIGHT MODAL / DIALOG BOX -->
+    <div id="custom-modal-backdrop" class="modal-backdrop" onclick="handleBackdropClick(event)">
+        <div class="modal-box" id="modal-box-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Bildirishnoma</h3>
+                <button class="modal-close-btn" onclick="closeCustomModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modal-message">
+                Xabar matni
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button class="btn btn-primary btn-sm" onclick="closeCustomModal()">Tushunarli</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL DIALOG -->
+    <div id="settings-modal-backdrop" class="modal-backdrop" onclick="handleSettingsBackdropClick(event)">
+        <div class="modal-box" style="max-width: 520px; width: 95%;">
+            <div class="modal-header">
+                <h3>⚙️ Tizim Sozlamalari (IP va Portlar)</h3>
+                <button class="modal-close-btn" onclick="closeSettingsModal()">✕</button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; text-align: left; padding: 18px 24px; margin-bottom: 10px;">
+                <div style="font-weight: 600; font-size: 0.88rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+                    📡 GE CT Apparati Sozlamalari
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">GE CT IP Manzili:</label>
+                        <input type="text" id="setting-ct-host" class="form-input" placeholder="192.168.10.250">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">GE CT Porti:</label>
+                        <input type="number" id="setting-ct-port" class="form-input" placeholder="4006">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">GE CT AE Title:</label>
+                    <input type="text" id="setting-ct-aet" class="form-input" placeholder="CT01">
+                </div>
+
+                <div style="font-weight: 600; font-size: 0.88rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 6px;">
+                    🖥️ PACS Server & Web Port
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">PACS DICOM Port:</label>
+                        <input type="number" id="setting-pacs-port" class="form-input" placeholder="11112">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">PACS AE Title:</label>
+                        <input type="text" id="setting-pacs-aet" class="form-input" placeholder="RADIANT">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Web Interfeys Porti:</label>
+                        <input type="number" id="setting-web-port" class="form-input" placeholder="8000">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Saqlash muddati (kun):</label>
+                        <input type="number" id="setting-retention-days" class="form-input" placeholder="30">
+                    </div>
+                </div>
+
+                <div style="font-weight: 600; font-size: 0.88rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 6px;">
+                    ✈️ Telegram Sozlamalari
+                </div>
+                <div>
+                    <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Telegram Bot Token:</label>
+                    <input type="password" id="setting-tg-token" class="form-input" placeholder="Bot Token">
+                </div>
+                <div>
+                    <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Telegram Kanal ID:</label>
+                    <input type="text" id="setting-tg-channel" class="form-input" placeholder="-100...">
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 24px; border-top: 1px solid #f1f5f9;">
+                <button class="btn btn-secondary btn-sm" onclick="closeSettingsModal()">Bekor qilish</button>
+                <button class="btn btn-primary btn-sm" onclick="saveSettingsFromModal()">💾 Saqlash</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

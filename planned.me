@@ -1,0 +1,273 @@
+# REJA BO'YICHA BARCHA MA'LUMOTLAR USHBU FAYLGA SAQLANISHI KERAK
+# ==============================================================================
+# LOYIHA: Sabadarmon MSKT uchun Avtomatlashtirilgan PACS, Worklist va Telegram Arxivlash Tizimi
+# MUALLIF / ISHLAB CHIQARUVCHI: Antigravity AI Engine
+# SANA: 02.10.2026
+# ==============================================================================
+
+## 1. LOYIHA MAQSADI VA TALABLAR
+Ushbu loyiha xususiy tibbiyot klinikasi uchun GE CT tomografiya apparati, mahalliy PACS server (Orthanc), shifokorlar ish stansiyasi (RadiAnt) hamda bemor ma'lumotlari va tekshiruv arxivlarini Telegram kanaliga 2 GB gacha hajmda avtomatik yuklovchi integratsiyalashgan ekotizimni yaratishga mo'ljallangan.
+
+### Asosiy talablar:
+1. **Modality Worklist (MWL):** Qabulxona/shifokor kompyuterida bemor ma'lumotlari kiritiladi va GE CT apparatiga avtomatik uzatiladi (laborant apparatda qayta qo'lda yozmaydi, apparat konsolida bemor tayyor chiqadi).
+2. **DICOM Qabul Qilish va Saqlash:** GE CT apparati tekshiruvni tugatgach, barcha DICOM tasvirlarni ushbu kompyuterdagi mahalliy PACS serverga yuboradi.
+3. **RadiAnt Integratsiyasi:** RadiAnt 24/7 ishlab turishi shart emas. Shifokor zarur vaqtda RadiAnt'ni ochib, PACS bazasidan bemorni qidirib oladi (Query/Retrieve - C-FIND / C-MOVE) yoki veb-paneldan 1 tugma bilan ochadi.
+4. **Telegramga Avtomatik Yuklash (>50 MB dan 2 GB gacha):** Har bir yakunlangan tekshiruv uchun:
+   - Bemor kartochkasi (F.I.Sh, ID, tekshiruv sohasi, sana, shifokor, kesimlar soni, fayl hajmi);
+   - Asosiy 1-3 ta diagnostik kesimning JPG/PNG prevyusi;
+   - To'liq DICOM tasvirlardan iborat ZIP arxiv MTProto protokoli orqali maxsus kanalga (@sabadarmon_mskt_bot orqali -1004295879936 kanaliga) avtomatik yuklanadi.
+5. **To'liq Portativlik (SSD ko'chirish osonligi):** Barcha dasturlar, serverlar, bazalar, arxivlar va fayllar faqat `D:\PACS\` papkasida joylashadi. Kelajakda yangi SSD o'rnatilsa, shunchaki `D:\PACS` papkasini ko'chirib o'tkazish kifoya qiladi.
+
+---
+
+## 2. TARMOQ VA QURILMALAR PARAMETRLARI (TEKSHIRILGAN)
+- **PACS Kompyuteri (Ushbu kompyuter):**
+  - IP manzillar: `192.168.10.249` va `192.168.10.100` (Ikkalasi ham bitta Ethernet interfeysda sozlangan)
+  - Operatsion tizim: Windows 11 Pro 64-bit (12th Gen Intel Core i3-12100, 8 GB RAM, 512 GB SSD)
+  - Ishchi disk: `D:\PACS\`
+- **GE Healthcare CT Apparati:**
+  - IP manzil: `192.168.10.250`
+  - DICOM Port: `4006`
+  - AE Title: `CT01`
+  - Holati: Tarmoq aloqasi faol (`TCP Test: Succeeded`)
+  - GE CT konsolidagi sozlama: `192.168.10.100:11112` ga `RADIANT` nomi bilan ulanish mavjud.
+- **AW Stansiyasi (Advantage Workstation):**
+  - IP manzil: `192.168.10.251`
+  - Port: `4006`, AE Title: `AW01`
+- **Telegram Sozlamalari:**
+  - Bot Token: `8901578611:AAFwH648xgPAfnw5Oh_ScBVuzVr94-JYkJI` (@sabadarmon_mskt_bot)
+  - Arxiv Kanal ID: `-1004295879936` ("Sabadarmon MSKT")
+  - Telegram MTProto API ID: `12756254`
+  - Telegram MTProto API Hash: `c77f78c1ac09bb77b02c8b800321`
+
+---
+
+## 3. TIZIM ARXITEKTURASI VA STRUKTURASI
+
+```
+                  ┌──────────────────────────────────────────────┐
+                  │          Klinika Qabulxonasi / Shifokor       │
+                  │        Web UI (http://localhost:8000)        │
+                  └──────────────────────┬───────────────────────┘
+                                         │ (Bemor F.I.Sh, ID, Soha)
+                                         ▼
+                  ┌──────────────────────────────────────────────┐
+                  │    FastAPI / Python Web Core (Port: 8000)     │
+                  │   - Bemorlarni ro'yxatga olish               │
+                  │   - .wl (DICOM Worklist) fayllarini yaratish │
+                  └──────────────────────┬───────────────────────┘
+                                         │ Yozadi: D:\PACS\orthanc\worklists\
+                                         ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        ORTHANC PACS SERVER (Port: 11112 / 8042)        │
+│                                                                        │
+│  [OrthancWorklists Plugin]               [DICOM C-STORE Storage SCP]    │
+│  - C-FIND Worklist provayderi           - KT dan rasmlarni qabul qiladi│
+│  - AE Title: RADIANT                    - SQLite Baza & Dicom Storage  │
+└───────────────▲────────────────────────────────────────┬───────────────┘
+                │ C-FIND (Worklist olish)                │ C-STORE (DCM rasmlar)
+                │                                        ▲
+┌───────────────┴────────────────────────────────────────┴───────────────┐
+│              GE HEALTHCARE CT APPARATI (192.168.10.250:4006)           │
+│              AE Title: CT01 (Konsol: Exam Rx & Schedule)                │
+└─────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼ (OnStableStudy event)
+┌─────────────────────────────────────────────────────────────────────────┐
+│        TELEGRAM MTPROTO ARCHIVER & SENDER (Telethon / Python)           │
+│        - Orthanc REST API (/studies/{id}/archive) -> .ZIP oladi         │
+│        - Prevyu kesimlar (JPG) tayyorlaydi                              │
+│        - MTProto orqali 2 GB gacha hajmdagi faylni yuklaydi             │
+└────────────────────────────────────────┬────────────────────────────────┘
+                                         │
+                                         ▼ (2 GB gacha ZIP + Prevyu + Text)
+┌─────────────────────────────────────────────────────────────────────────┐
+│       TELEGRAM KANAL: "Sabadarmon MSKT" (ID: -1004295879936)            │
+└─────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼ (Kerak bo'lganda so'rov orqali)
+┌─────────────────────────────────────────────────────────────────────────┐
+│       RADIANTVIEWER (Shifokor xohlagan vaqtda ochadi)                   │
+│       - Orthanc C-FIND / C-MOVE orqali tasvirlarni ochadi               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. PAPKALAR STRUKTURASI (`D:\PACS\`)
+
+Barcha fayllar faqat `D:\PACS\` ichida jamlanadi:
+
+```text
+D:\PACS\
+│
+├── planned.me                     # Tizimning to'liq rejasi (ushbu fayl)
+├── read.me                        # Amalga oshirilgan ishlar jurnali
+├── about.me                       # Foydalanish yo'riqnomasi
+│
+├── orthanc\                       # Orthanc PACS server yadrosi
+│   ├── Orthanc.exe                # Asosiy executable fayli
+│   ├── orthanc.json               # Asosiy konfiguratsiya (port 11112, AE RADIANT)
+│   ├── plugins\                   # ModalityWorklists va WebViewer plaginlari
+│   ├── worklists\                 # GE CT uchun generatsiya qilinadigan .wl fayllar
+│   ├── database\                  # SQLite PACS bazasi (orthanc.db)
+│   └── storage\                   # Barcha qabul qilingan DICOM fayllar
+│
+├── core\                          # Tizimning orqa tomoni (Backend)
+│   ├── main.py                    # FastAPI veb-server va REST API
+│   ├── worklist_generator.py      # Bemor ma'lumotidan .wl DICOM yaratuvchi modul
+│   ├── database.py                # Bemorlar va arxivlar ro'yxati (SQLite)
+│   └── config.py                  # Nisbiy yo'llar va sozlamalar
+│
+├── web\                           # Zamonaviy qabulxona interfeysi (Frontend)
+│   ├── index.html                 # Bemor kiritish va monitoring oynasi
+│   ├── app.js                     # Dinamik muloqot va real vaqt yangilanishi
+│   └── styles.css                 # Qulay, zamonaviy tibbiy dizayn
+│
+├── telegram\                      # Telegram MTProto Uploader (2 GB gacha)
+│   ├── uploader.py                # Telethon asosidagi 2 GB uploader
+│   ├── preview_generator.py       # DICOM'dan diagnostik JPG prevyu oluvchi modul
+│   └── session\                   # Telegram xavfsiz sessiya fayllari
+│
+├── archives\                      # Telegramga jo'natiladigan ZIP arxivlar
+│   └── 2026-10-02\                # Sana bo'yicha saralangan arxivlar
+│
+├── scripts\                       # Boshqaruv skriptlari
+│   ├── start_all.bat              # Tizimni 1 tugma bilan ishga tushirish
+│   ├── stop_all.bat               # Tizimni to'xtatish
+│   └── backup_pacs.bat            # Arxiv va bazani nusxalash
+│
+└── python_env\                    # Portativ Python muhiti va kutubxonalar
+```
+
+---
+
+## 5. MODULLARNING ISHLASH MEXANIZMI
+
+### Modul 1: Bemorlarni ro'yxatga olish (Web UI)
+* Foydalanuvchi brauzerda `http://localhost:8000` manzilini ochadi.
+* **Kiritiladigan maydonlar (GE Healthcare Exam Rx talablariga 100% mos):**
+  - **Patient ID:** Bemor kartochka raqami yoki Pasport / JSHSHIR (masalan: `P-1517` yoki `AA1234567`)
+  - **Patient Name:** Familiya Ism Sharif (DICOM standarti: `Familiya^Ism^Sharif`)
+  - **Birth Date & Age:** Bemor tug'ilgan sanasi va yoshi
+  - **Sex:** Jinsi (`M` - Erkak / `F` - Ayol)
+  - **Weight / Height:** Vazni va bo'yi (ixtiyoriy)
+  - **Exam Description:** Tekshiruv sohasi (masalan: *Bosh miya KT, Ko'krak qafasi MSKT, Bel-dumg'aza umurtqalari KT, Qorin bo'shlig'i MSKT*)
+  - **Accession Number:** Avtomatik generatsiya qilinadigan noyob raqam
+  - **Referring Physician:** Yo'llovchi shifokor
+  - **Operator:** KT Laboranti
+* **"KT ga yuborish"** tugmasi bosilganda:
+  - Baza ichiga yoziladi.
+  - `worklist_generator.py` orqali `D:\PACS\orthanc\worklists\P-1517.wl` fayli hosil qilinadi.
+
+### Modul 2: Modality Worklist (MWL) & Orthanc Server
+* Orthanc `192.168.10.100` IP manzilida `11112` portda `RADIANT` AE Title bilan tinglaydi.
+* GE CT konsolida laborant **"Schedule"** yoki **"Worklist"** tugmasini bosganda, apparat `C-FIND` so'rovi yuboradi.
+* Orthanc darhol `worklists/` papkasidagi yangi bemorni apparatga uzatadi.
+* GE CT ekranida bemor tanlanadi va avtomatik ravishda barcha maydonlar to'lib, skanerlash boshlanadi.
+
+### Modul 3: DICOM Qabul Qilish va RadiAnt bilan aloqa
+* Skanerlash yakunlangach, GE CT barcha DICOM kesimlarni `192.168.10.100:11112` ga uzatadi.
+* Orthanc barcha fayllarni xatosiz qabul qilib, o'zining `D:\PACS\orthanc\storage\` papkasiga joylashtiradi.
+* **RadiAnt bilan integratsiya:**
+  - RadiAnt'ning `pacs.xml` konfiguratsiyasida mahalliy Orthanc serveri ko'rsatiladi.
+  - Shifokor RadiAnt dasturini ochib, **"Search"** tugmasini bossa, Orthanc'dagi barcha bemorlar chiqadi.
+  - Qo'shimcha ravishda Web UI oynasida **"RadiAnt'da ko'rish"** tugmasi bo'ladi, bu esa bemorni darhol RadiAnt'da ochib beradi.
+
+### Modul 4: Avtomatik Telegram Arxivlash (2 GB gacha Yagona ZIP)
+* Bitta tekshiruvning barcha kesimlari kelib bo'lgach (inactivity timeout):
+* Telegram uploader moduli quyidagi ishlarni bajaradi:
+  1. Bemor ma'lumotlarini ajratib oladi.
+  2. To'liq DICOM fayllardan bitta yaxlit ZIP arxiv yaratadi: `D:\PACS\archives\YYYY-MM-DD\Familiya_ID_Sana.zip`.
+  3. Takrorlanishni tekshiradi: Agar kadrlar soni o'zgarmagan bo'lsa, qayta yubormaydi. Agar yangi kadrlar qo'shilgan bo'lsa, `🔄 Yangilandi` deb qayta yuboradi.
+  4. Telethon MTProto orqali Bot hisobi nomidan `-1004295879936` kanaliga 2 GB gacha yagona ZIP fayl sifatida yuboradi.
+  5. ZIP arxiv ostidagi izoh formati (prevyu rasmsiz):
+     ```text
+     👤 Bemor: RASULOV ALIMUROD
+     🆔 ID: 102099
+     📅 Sana: 02-oktabr 2026
+     (🔬 Tekshiruv: Bosh miya MSKT)
+     ```
+
+---
+
+## 6. BOSQICHMA-BOSQICH AMALGA OSHIRISH REJASI (ROADMAP)
+
+- [x] **1-Bosqich:** `D:\PACS\` mustaqil portativ papka strukturasini to'liq yaratish va bog'liqliklarni o'rnatish.
+- [x] **2-Bosqich:** DICOM Engine (`11112`, AE: `RADIANT`, Storage, Worklist, Storage Commitment Push Model) yaratish.
+- [x] **3-Bosqich:** Python backend (`core/`) va Worklist generatorini yaratish (GE CT Exam Rx maydonlari bilan).
+- [x] **4-Bosqich:** Qabulxona va shifokor uchun qulay Veb-interfeys (`web/`), monitoring va ko'p tanlovli boshqaruv tayyorlash.
+- [x] **5-Bosqich:** Telegram MTProto uploader (`cryptg` tezlatgichi bilan) modulini sozlash va 2 GB gacha yagona ZIP fayllarni sinovdan o'tkazish.
+- [x] **6-Bosqich:** GE CT apparatidan haqiqiy bemorlar tasvirlarini qabul qilish va Telegramga to'liq yetkazish.
+- [x] **7-Bosqich:** RadiAnt Q/R integratsiyasi va bitta tugmali `start_all.bat` / `stop_all.bat` ishga tushiruvchilarni yaratish.
+- [x] **8-Bosqich:** GE CT apparatidagi barcha 727 ta tarixiy bemorlarni DICOM C-FIND orqali PACS bazasiga sinxronlash va ikki tomonlama C-MOVE orqali apparatdan to'g'ridan-to'g'ri yuklab olish imkoniyatini yaratish.
+- [x] **9-Bosqich:** Telegram yuklash tezligini 5x-10x gacha tezlashtirish (`cryptg` C-kutubxonasi va `FastTelethonhelper` orqali parallel ko'p tarmoqli MTProto yuklash).
+- [x] **11-Bosqich:** Jonli Dinamik Progress va Jarayon Holati (KT dan yuklash foizi: `📥 KT dan yuklanmoqda: 45% (180/400 kadr)`, ZIP arxivlash va Telegramga yuklash foizi: `📤 Telegramga yuklanmoqda: 65%`).
+- [x] **12-Bosqich:** Server Xotirasida Nusxasi Bor/Yo'qligi Ko'rsatkichi (`💾 Serverda mavjud (96.4 MB)` vs `☁️ Faqat KT apparatida`).
+- [x] **13-Bosqich:** 30 Kunlik Saqlash Muddati va Avtomatik Tozalash (Retention Policy) moduli (`core/retention_manager.py`).
+- [x] **14-Bosqich:** Yengil animatsiyali markaziy Modal / Dialog box tizimi (tashqi fonga bosilganda darhol yopiladigan yechim).
+- [x] **15-Bosqich:** Monitoring va Tizim loglarini yagona oynaga birlashtirish, "Yangi Bemor"ni yashirish va Bugungi navbatni alohida `http://localhost:8000/list` sahifasiga ko'chirish.
+- [x] **16-Bosqich:** Barcha test bemorlarni bazadan tozalash (faqat 727 ta real KT bemori qoldi) va butun loyiha kodlarini Git reposiga kommit qilish.
+- [x] **17-Bosqich:** SQLite qulflanishini (`database is locked`) WAL (Write-Ahead Logging) rejimi, `busy_timeout=30000` va tejamkor yozish (throttling) orqali butunlay bartaraf etish.
+- [x] **18-Bosqich:** Yuklash tezligini real vaqt rejimida MB/s da hisoblash va ko'rsatish (`speed_mb_s`), hamda Telegram yuklash tezligi (internet chiqish tezligi vs MTProto) tahlili.
+- [x] **19-Bosqich:** Amallarni ikkiga ajratish: "📥 Serverga olish" (faqat mahalliy saqlash) va "📤 Telegram" (kanalga yuborish).
+- [x] **20-Bosqich:** RadiAnt integratsiyasini to'g'rilash (serverdagi DICOM papkalar va ZIP arxivlarni ochish, KT apparatidagilar uchun serverga yuklab olish dialogi).
+- [x] **21-Bosqich:** Yuqori o'ng qismdagi "⚙️ Sozlamalar" moduli orqali GE CT IP, port, PACS port, Web port va Telegram parametrlarini dinamik boshqarish (`data/settings.json`).
+- [x] **22-Bosqich:** Windows bilan birga avtomatik ishga tushish (Registry Run), kompyuter o'chganda to'xtash, Antigravity yopilganda ham mustaqil ishlash va `PACS_System.exe` mustaqil dasturi.
+- [x] **23-Bosqich:** Boshqa kompyuterga ko'chirish uchun portativ variant: `D:\PACS\PACS_System_Portable.zip` va `Install_And_Run.bat`.
+- [x] **24-Bosqich:** Barcha kodlarni GitHub (`https://github.com/Hojiakbar-Turotov/PACS-System.git`) manziliga commit va push qilish.
+
+---
+
+## 8. FOYDALANISH VA AVTOMATIK ISHGA TUSHIRISH (24/7)
+1. **Windows bilan birga avtomatik ishga tushish:**
+   - Dastur birinchi marta `PACS_System.exe` orqali ishga tushirilganda avtomatik ravishda `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` reestriga yoziladi.
+   - Kompyuter yoqilishi bilan Windows tizimi PACS serverni fonda (pythonw.exe orqali konsolsiz, jim) ishga tushiradi.
+   - Kompyuter o'chirilganda Windows avtomatik ravishda serverni xavfsiz to'xtatadi.
+2. **Portativ variant (`PACS_System_Portable.zip`):**
+   - Istalgan boshqa kompyuterga zip faylni ochib, `Install_And_Run.bat` fayliga 1 marta bosish kifoya.
+3. **Sozlamalarni o'zgartirish:**
+   - Veb-panelda yuqori o'ngdagi `⚙️ Sozlamalar` tugmasi orqali istalgan vaqtda IP va portlarni yangilab saqlash mumkin.
+
+---
+
+## 7. YANGI TALABLAR BO'YICHA TEXNIK REJA (02.10.2026)
+
+### 7.1. Jonli Dinamik Progress (KT dan yuklash va Telegramga yuklash foizlari)
+1. **Holat Modelini Kengaytirish:**
+   - `core/progress_tracker.py` moduli yaratiladi.
+   - Har bir `study_instance_uid` bo'yicha:
+     - `stage`: `'IDLE'`, `'DOWNLOADING_CT'`, `'ARCHIVING'`, `'UPLOADING_TG'`, `'COMPLETED'`, `'ERROR'`
+     - `percent`: 0 dan 100 gacha raqam
+     - `text`: Jarayon matni (masalan: `📥 KT dan: 54% (216/400 kadr)` yoki `📤 Telegram: 72% (65.2/90.5 MB)`)
+     - `current_items`, `total_items`, `updated_at`.
+2. **KT dan Yuklash Progressini Tutish (C-MOVE):**
+   - Apparatdan C-MOVE so'rovi ketganda: `stage = 'DOWNLOADING_CT'`.
+   - `core/dicom_listener.py` da kelgan har bir kadrda hisoblagich oshiriladi va kutilayotgan `instances_count` ga nisbatan foiz hisoblab boriladi:
+     `percent = int((received / total) * 100)`.
+3. **Telegramga Yuklash Progressini Tutish:**
+   - `telegram/dispatcher.py` dagi `progress_callback(current, total)` har bir blok uzatilganda:
+     `percent = int((current / total) * 100)`.
+     `text = f"📤 Telegramga yuklanmoqda: {percent}% ({round(current/1048576,1)}/{round(total/1048576,1)} MB)"`.
+4. **Veb-panelda Jonli Avto-Yangilanish (Live Polling & UI Progress Bar):**
+   - `/api/studies/progress` endpointi yaratiladi.
+   - Veb-panel har 1.5 soniyada faol jarayonlarni so'rab turadi.
+   - Jadvalda har bir qatorda yorqin rangli animatsiyali progress bar va foiz matni real vaqtda ko'rsatiladi.
+
+### 7.2. Server Xotirasida Nusxasi Bor/Yo'qligi (Local Storage Copy Indicator)
+1. Har bir tekshiruv uchun mahalliy diskda (`D:\PACS\data\storage` yoki `D:\PACS\data\archives`) fayllar borligi tekshiriladi.
+2. Veb-panel jadvalida alohida nishon/ustun:
+   - `💾 Serverda mavjud (96.4 MB)` — yashil nishon (fayllar diskda mavjud, RadiAnt bir soniyada ochadi).
+   - `☁️ Faqat KT apparatida` — kulrang/binafsharang nishon (fayllar faqat KT apparatida).
+   - Agar 30 kun saqlash muddati ichida bo'lsa: `(29 kun qoldi)`.
+
+### 7.3. 30 Kunlik Saqlash Muddati va Avtomatik Tozalash (Retention Policy)
+1. **Talab:** Ma'lumot KT apparatidan ushbu kompyuterga yuklab olingan kundan boshlab **30 kun** davomida saqlansin, 30 kundan keyin disk to'lib ketmasligi uchun og'ir DICOM/ZIP fayllari tozalanadi.
+2. **Implementatsiya:**
+   - Bazada `local_stored_at` (yuklangan vaqt) saqlanadi.
+   - `core/retention_manager.py` xizmati fonda ishlaydi (har 6 soatda va server boshlanishida).
+   - 30 kundan oshgan tekshiruvlarning og'ir fayllari diskdan xavfsiz o'chiriladi.
+   - Bazadagi ma'lumotlar (Bemor F.I.Sh, ID, tekshiruv sanasi, Telegram xabari) saqlanib qoladi.
+   - Zarurat bo'lsa, istalgan vaqtda "📥 Yuklab olish & Telegram" bosilsa, KT apparatidan qayta yuklab olinishi mumkin bo'ladi.
+
+

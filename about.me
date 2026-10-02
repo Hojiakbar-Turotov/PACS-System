@@ -1,0 +1,103 @@
+# SABADARMON MSKT PACS TIZIMI — FOYDALANISH YO'RIQNOMASI (ABOUT.ME)
+# ==============================================================================
+# KLINIKA XODIMLARI, RADIOLOG SHIFOKORLAR VA LABORANTLAR UCHUN QO'LLANMA
+# ==============================================================================
+
+## 1. TIZIM HAQIDA QISQACHA
+Ushbu PACS tizimi Sabadarmon MSKT xususiy klinikasi uchun maxsus ishlab chiqilgan bo'lib, quyidagi vazifalarni to'liq avtomatlashtiradi:
+1. Qabulxonada bemor ro'yxatga olinadi va bir zumda GE CT tomografiya apparatiga uzatiladi (Worklist).
+2. GE CT apparati tekshiruv tugagach, barcha tasvirlarni ushbu kompyuterdagi xavfsiz PACS bazasiga yuklaydi.
+3. Tekshiruv tugashi bilan bemor ma'lumotlari, asosiy kesimlar prevyusi (JPG) hamda to'liq DICOM ZIP arxivi (2 GB gacha) avtomatik ravishda klinikaning Telegram kanaliga (@sabadarmon_mskt_bot orqali -1004295879936 kanaliga) yuboriladi.
+4. Shifokor xohlagan vaqtda RadiAnt dasturini ochib, tekshiruvlarni qidirib topishi va tahlil qilishi mumkin.
+
+---
+
+## 2. KUNDALIK ISH KETMA-KETLIGI (WORKFLOW)
+
+### 1-qadam: Bemorlarni ro'yxatga olish (Qabulxona yoki Shifokor)
+1. Brauzerni oching va quyidagi manzilga kiring:
+   `http://localhost:8000` (yoki klinika ichki tarmog'idagi istalgan kompyuterdan: `http://192.168.10.100:8000`)
+2. Bemor ma'lumotlarini kiriting:
+   - **Bemor ID:** Pasport seriyasi yoki kartochka raqami (masalan: `P-1517`)
+   - **Familiya Ism Sharif:** (masalan: `Aliyev Vali Karim o'g'li`)
+   - **Tug'ilgan sana va Jinsi:** (masalan: `15.05.1985`, Erkak)
+   - **Tekshiruv turi:** Ro'yxatdan tanlang yoki yozing (*Bosh miya MSKT, Ko'krak qafasi, Umurtqa pog'onasi va h.k.*)
+   - **Yo'llovchi shifokor:** Shifokor F.I.Sh
+3. **"KT ga yuborish (Worklist)"** tugmasini bosing.
+   *Bemor ma'lumotlari bir soniya ichida GE CT apparati uchun tayyor bo'ladi.*
+
+---
+
+### 2-qadam: GE CT Apparatida Tekshiruvni Boshlash (KT Laboranti)
+1. GE CT konsolida **"Schedule"** yoki **"Worklist"** tugmasini bosing (yoki avtomatik yangilanishni kuting).
+2. Qabulxonadan kiritilgan bemor ekranda paydo bo'ladi.
+3. Bemor ustiga 2 marta bosing:
+   *Bemorning ismi, ID raqami, tug'ilgan sanasi, tekshiruv sohasi va shifokor nomi avtomatik ravishda Exam Rx maydonlariga to'ladi (qo'lda yozish shart emas!).*
+4. Skanerlashni odatdagidek o'tkazing.
+5. Tekshiruv tugagach, apparat tasvirlarni avtomatik tarzda PACS tizimiga (`RADIANT` - `192.168.10.100:11112`) yuboradi.
+
+---
+
+### 3-qadam: Telegram Kanaliga Avtomatik Arxivlanishi
+Laborant yoki shifokor hech narsa qilishi shart emas:
+1. GE CT rasmlarni yuborib bo'lgach (odatda 15 soniya ichida), tizim avtomatik ravishda:
+   - Barcha DICOM kesimlardan bitta yaxlit ZIP arxiv yaratadi;
+   - Telegram kanalga (`-1004295879936`) ortiqcha prevyu rasmlarsiz, to'g'ridan-to'g'ri ZIP arxiv va uning ostiga quyidagi formatda izoh qo'shib yuklaydi:
+     ```text
+     👤 Bemor: RASULOV ALIMUROD
+     🆔 ID: 102099
+     📅 Sana: 02-oktabr 2026
+     🔬 Tekshiruv: Bosh miya MSKT
+     ```
+   - Agar tekshiruv sohasi ko'rsatilmagan bo'lsa, faqat Bemor, ID va Sana ko'rsatiladi.
+   - Katta hajmdagi fayllar ham bo'laklarga bo'linmasdan, **bitta butun ZIP** (2 GB gacha) bo'lib boradi.
+2. **Takrorlanishdan himoya:**
+   - Agar bir xil kadrlar soniga ega tekshiruv qayta kelib qolsa, u Telegramga takroran yuborilmaydi.
+   - Agar bemorga yangi qo'shimcha kadrlar tushirilgan bo'lsa, tizim buni sezib, `🔄 Yangilandi` belgisi bilan yangilangan arxivni Telegramga yuboradi.
+3. **Qayta yuborish, KT dagi 727 ta Bemor Tarixi va Ko'p tanlash (Multi-select):**
+   - Veb-panelning **"📦 Arxiv va Telegram"** bo'limida KT apparatidagi **barcha 727 ta haqiqiy bemorlar** ro'yxati aks etadi.
+   - **Qidiruv satri:** Bemor F.I.Sh, Bemor ID yoki sana bo'yicha yozsangiz, kerakli bemor darhol chiqadi.
+   - **Filtr tugmalari:**
+     - `Barchasi (727)` — barcha tekshiruvlar;
+     - `💾 KT Qurilmasida (716)` — KT apparatida saqlanayotgan bemorlar;
+     - `✅ Yuborilganlar (6)` — Telegramga yetkazilganlar.
+   - **Jonli Dinamik Progress:**
+     - "📥 Yuklab olish & Telegram" bosilganda, real vaqtda KT dan qabul qilish foizi (`📥 KT dan yuklanmoqda: 45% (180/400 kadr)`) va Telegramga yuklash foizi (`📤 Telegramga yuklanmoqda: 65% (58.2/89.5 MB)`) harakatchan progress-barda aks etadi.
+   - **Mahalliy Xotira va 30 Kunlik Saqlash:**
+     - Har bir tekshiruv uchun uning serverda bor-yo'qligi ko'rsatiladi: `💾 Serverda (96.4 MB) - 29 kun qoldi` yoki `☁️ Faqat KT da`.
+     - KT apparatidan yuklab olinganidan boshlab **30 kun** davomida saqlanadi. 30 kundan so'ng disk to'lmasligi uchun fayllar avtomatik tozalanadi, lekin baza qaydi saqlanadi.
+   - **Bugungi Navbat Sahifasi:**
+     - Bugungi bemorlar navbati alohida sahifada joylashgan: `http://localhost:8000/list`
+     - Asosiy paneldagi "📋 Bugungi Navbat (/list) ↗" tugmasi orqali o'tish mumkin.
+   - **Yengil Markaziy Xabarlar:**
+     - Tizimda ogohlantirishlar va so'rovlar markaziy chiroyli quticha (modal) orqali chiqadi. Oyna chetiga (fonga) bosilsa, o'z-o'zidan yopiladi.
+
+---
+
+### 4-qadam: RadiAnt Dasturida Rasmlarni Ko'rish (Shifokor)
+* RadiAnt 24/7 ishlab turishi shart emas.
+* Kerak bo'lganda RadiAnt'ni oching:
+  1. Yuqori paneldagi **"PACS Search"** tugmasini bosing.
+  2. Bemor ismini yoki sanani kiriting va qidiring.
+  3. Kerakli bemorni tanlab, **"Download"** yoki **"Open"** tugmasini bosing — tekshiruv darhol RadiAnt oynasida ochiladi.
+* Yoki Veb-paneldagi (`http://localhost:8000`) bemorlar ro'yxatida **"RadiAnt'da ochish"** tugmasini bosishingiz mumkin.
+
+---
+
+## 3. TIZIMNI ISHGA TUSHIRISH, AVTOSTART VA TO'XTATISH
+
+Barcha fayllar va dasturlar `D:\PACS\` papkasida joylashgan:
+- **Birinchi marta ishga tushirish:** `D:\PACS\PACS_System.exe` fayliga 2 marta bosing. U serverni orqa fonda ishga tushiradi, brauzerni ochadi va tizimni avtomatik ravishda Windows yuklanishiga qo'shadi!
+- **Windows bilan birga avtomatik ishlash (24/7):** Dastur Windows reestriga (`Run`) qo'shilgan bo'lib, har safar kompyuter yoqilganda fonda avtomatik ishlay boshlaydi. Antigravity IDE yoki boshqa oynalar yopilsa ham u mustaqil ishlayveradi.
+- **Kompyuter o'chganda:** Windows avtomatik ravishda PACS jarayonini xavfsiz to'xtatadi.
+- **Tizimni qo'lda to'xtatish:** `D:\PACS\scripts\stop_all.bat` fayliga bosing.
+- **Tarmoq va Port Sozlamalari:** Veb-panelda yuqori o'ng burchakdagi **"⚙️ Sozlamalar"** tugmasini bosing va GE CT IP, port, PACS port yoki Telegram parametrlarini bemalol o'zgartiring.
+
+---
+
+## 4. BOSHQA KOMPYUTERGA O'TKAZISH VA PORTATIV PAKET (PORTABILITY)
+- `D:\PACS\PACS_System_Portable.zip` arxivi tayyorlangan.
+- Yangi kompyuterga o'tkazish tartibi:
+  1. `PACS_System_Portable.zip` arxivini yangi kompyuterning `D:\PACS` papkasiga oching.
+  2. `Install_And_Run.bat` fayliga 2 marta bosing.
+  3. Skript avtomatik ravishda kutubxonalarni o'rnatadi, Windows avtostartiga qo'shadi va `PACS_System.exe` ni ishga tushiradi!

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bugungi Navbat — Sabadarmon MSKT</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo-section">
+                <div class="logo-icon">📋</div>
+                <div>
+                    <h1>Bugungi Navbat (Worklist)</h1>
+                    <span class="subtitle">GE CT Tomografiya apparatiga yuborilgan va qabul qilingan bemorlar</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="/" class="btn btn-primary" style="text-decoration: none; display: flex; align-items: center; gap: 6px;">
+                    📦 Asosiy Panel (Arxiv & Telegram)
+                </a>
+            </div>
+        </header>
+
+        <!-- ASOSIY JADVAL KARTASI -->
+        <main class="card">
+            <div class="table-header">
+                <h2>Bemorlar Ro'yxati (Worklist va KT Qurilmasidan olinganlar)</h2>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <button class="btn btn-sm btn-primary" onclick="pollCTNow()" id="btn-poll-ct">
+                        📡 KT Apparatidan So'rash
+                    </button>
+                    <button class="btn btn-sm btn-refresh" onclick="loadWorklist()">🔄 Yangilash</button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Manba (Origin)</th>
+                            <th>Accession No</th>
+                            <th>Bemor ID</th>
+                            <th>Bemor F.I.Sh</th>
+                            <th>Jinsi</th>
+                            <th>Tekshiruv Nomi</th>
+                            <th>Kiritilgan Vaqt</th>
+                            <th>Holat</th>
+                            <th>Amallar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="worklist-tbody">
+                        <tr><td colspan="9" class="text-center" style="padding: 20px; text-align: center;">Yuklanmoqda...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- CUSTOM MODAL DIALOG (YENGIL BOX) -->
+    <div id="custom-modal-backdrop" class="modal-backdrop" onclick="handleBackdropClick(event)">
+        <div class="modal-box" id="modal-box-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Bildirishnoma</h3>
+                <button class="modal-close-btn" onclick="closeCustomModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modal-message">
+                Xabar matni
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button class="btn btn-secondary btn-sm" onclick="closeCustomModal()">Yopish</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Modal boshqaruvi
+        function showDialog({ title = "Bildirishnoma", message, onConfirm = null, confirmText = "Ha", cancelText = "Bekor qilish" }) {
+            const backdrop = document.getElementById('custom-modal-backdrop');
+            const titleEl = document.getElementById('modal-title');
+            const msgEl = document.getElementById('modal-message');
+            const footerEl = document.getElementById('modal-footer');
+            
+            titleEl.innerText = title;
+            msgEl.innerText = message;
+            
+            if (onConfirm) {
+                footerEl.innerHTML = `
+                    <button class="btn btn-secondary btn-sm" onclick="closeCustomModal()">${cancelText}</button>
+                    <button class="btn btn-primary btn-sm" id="btn-modal-confirm">${confirmText}</button>
+                `;
+                document.getElementById('btn-modal-confirm').onclick = () => {
+                    closeCustomModal();
+                    onConfirm();
+                };
+            } else {
+                footerEl.innerHTML = `<button class="btn btn-primary btn-sm" onclick="closeCustomModal()">Tushunarli</button>`;
+            }
+            backdrop.classList.add('active');
+        }
+
+        function closeCustomModal() {
+            const backdrop = document.getElementById('custom-modal-backdrop');
+            if (backdrop) backdrop.classList.remove('active');
+        }
+
+        function handleBackdropClick(e) {
+            if (e.target.id === 'custom-modal-backdrop') {
+                closeCustomModal();
+            }
+        }
+
+        // Navbatni yuklash
+        async function loadWorklist() {
+            try {
+                const res = await fetch('/api/worklist');
+                const list = await res.json();
+                const tbody = document.getElementById('worklist-tbody');
+                
+                if (list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #94a3b8; padding: 24px;">Bugungi kunda hali bemorlar kiritilmagan.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = list.map(item => {
+                    const isCtOrigin = (item.origin === 'CT_DEVICE');
+                    const originBadge = isCtOrigin
+                        ? `<span class="badge-origin badge-origin-ct">⚠️ KT Konsolida</span>`
+                        : `<span class="badge-origin badge-origin-web">🌐 Tizim (Web)</span>`;
+
+                    const timeStr = item.scheduled_time || (item.created_at ? item.created_at.split('T')[1].substring(0, 8) : '-');
+                    const statusClass = item.status === 'COMPLETED' ? 'status-sent' : (item.status === 'SCHEDULED' ? 'status-scheduled' : 'status-pending');
+                    const statusText = item.status === 'COMPLETED' ? 'Bajarildi' : (item.status === 'SCHEDULED' ? 'Kutilmoqda' : item.status);
+
+                    return `
+                    <tr style="${isCtOrigin ? 'background: #fffbeb;' : ''}">
+                        <td>${originBadge}</td>
+                        <td><code>${item.accession_number}</code></td>
+                        <td><strong>${item.patient_id}</strong></td>
+                        <td><strong>${item.patient_name}</strong></td>
+                        <td>${item.gender === 'M' ? 'Erkak' : (item.gender === 'F' ? 'Ayol' : '-')}</td>
+                        <td>${item.exam_description || '-'}</td>
+                        <td>${timeStr}</td>
+                        <td><span class="badge-status ${statusClass}">${statusText}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-action-delete" onclick="deleteWorklistItem(${item.id})">O'chirish</button>
+                        </td>
+                    </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error("Worklist yuklashda xatolik:", err);
+            }
+        }
+
+        async function deleteWorklistItem(id) {
+            showDialog({
+                title: "O'chirishni tasdiqlang",
+                message: "Ushbu bemorni navbatdan o'chirishni xohlaysizmi?",
+                confirmText: "O'chirish",
+                onConfirm: async () => {
+                    try {
+                        const res = await fetch(`/api/worklist/${id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            loadWorklist();
+                        } else {
+                            showDialog({ title: "Xatolik", message: "O'chirib bo'lmadi" });
+                        }
+                    } catch (err) {
+                        showDialog({ title: "Xatolik", message: err.toString() });
+                    }
+                }
+            });
+        }
+
+        async function pollCTNow() {
+            const btn = document.getElementById('btn-poll-ct');
+            const oldText = btn.innerText;
+            btn.innerText = "📡 Tekshirilmoqda...";
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/poll_ct', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showDialog({
+                        title: "KT Tekshiruvi",
+                        message: `GE CT apparati bilan tekshirildi. ${data.count} ta bugungi tekshiruv aniqlandi.`
+                    });
+                    loadWorklist();
+                } else {
+                    showDialog({ title: "Xatolik", message: data.detail || "KT dan javob kelmadi" });
+                }
+            } catch (err) {
+                showDialog({ title: "Xatolik", message: err.toString() });
+            } finally {
+                btn.innerText = oldText;
+                btn.disabled = false;
+            }
+        }
+
+        // Dastlabki yuklash va avto-yangilanish
+        loadWorklist();
+        setInterval(loadWorklist, 10000);
+    </script>
+</body>
+</html>
