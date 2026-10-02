@@ -30,7 +30,13 @@ DEFAULT_SETTINGS = {
     "telegram_api_hash": "b18441a1ff607e10a989891a5462e627",
     "radiant_exe": r"C:\App\RadiAntViewer\RadiAntViewer.exe",
     "study_inactivity_timeout": 15,
-    "retention_days": 30
+    "retention_days": 30,
+    # Yangi avtomatlashtirish va parallel yuklash sozlamalari
+    "auto_archive_enabled": True,
+    "new_study_poll_interval": 60,      # Yangi bemorlarni tekshirish oralig'i (soniyalarda, default: 60s)
+    "recon_stability_checks": 3,        # Rekonstruksiya barqarorligi uchun ketma-ket bir xil kadr soni chiqishi (3 marta)
+    "deep_scan_interval": 10800,        # Barcha bemorlarni qayta tekshirish (chuqur skaner) oralig'i (3 soat = 10800s)
+    "batch_concurrency": 2              # Bir vaqtda parallel yuklanadigan bemorlar soni (kompyuter qotmasligi uchun 2)
 }
 
 def load_settings() -> dict:
@@ -58,6 +64,7 @@ def _apply_globals(conf: dict):
     global WEB_HOST, WEB_PORT
     global TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, TELEGRAM_API_ID, TELEGRAM_API_HASH
     global RADIANT_EXE, STUDY_INACTIVITY_TIMEOUT, RETENTION_DAYS
+    global AUTO_ARCHIVE_ENABLED, NEW_STUDY_POLL_INTERVAL, RECON_STABILITY_CHECKS, DEEP_SCAN_INTERVAL, BATCH_CONCURRENCY
     
     PACS_HOST = conf.get("pacs_host", DEFAULT_SETTINGS["pacs_host"])
     PACS_PORT = int(conf.get("pacs_port", DEFAULT_SETTINGS["pacs_port"]))
@@ -78,6 +85,12 @@ def _apply_globals(conf: dict):
     RADIANT_EXE = conf.get("radiant_exe", DEFAULT_SETTINGS["radiant_exe"])
     STUDY_INACTIVITY_TIMEOUT = int(conf.get("study_inactivity_timeout", DEFAULT_SETTINGS["study_inactivity_timeout"]))
     RETENTION_DAYS = int(conf.get("retention_days", DEFAULT_SETTINGS["retention_days"]))
+
+    AUTO_ARCHIVE_ENABLED = bool(conf.get("auto_archive_enabled", DEFAULT_SETTINGS["auto_archive_enabled"]))
+    NEW_STUDY_POLL_INTERVAL = int(conf.get("new_study_poll_interval", DEFAULT_SETTINGS["new_study_poll_interval"]))
+    RECON_STABILITY_CHECKS = int(conf.get("recon_stability_checks", DEFAULT_SETTINGS["recon_stability_checks"]))
+    DEEP_SCAN_INTERVAL = int(conf.get("deep_scan_interval", DEFAULT_SETTINGS["deep_scan_interval"]))
+    BATCH_CONCURRENCY = int(conf.get("batch_concurrency", DEFAULT_SETTINGS["batch_concurrency"]))
 
 # Dastlabki yuklash
 _cfg = load_settings()

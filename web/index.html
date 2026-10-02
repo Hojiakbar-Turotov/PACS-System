@@ -74,13 +74,54 @@
                 </div>
 
                 <!-- QIDIRUV VA STATUS FILTERLARI -->
-                <div class="filter-container">
-                    <input type="text" id="study-search-input" class="search-input" placeholder="🔍 Bemor F.I.Sh yoki ID raqami bo'yicha tezkor qidiruv..." oninput="handleStudySearch(this.value)">
-                    <div class="filter-pills">
-                        <button class="filter-pill active" onclick="setStudyFilter('ALL', this)">Barchasi (<span id="filter-all-count">0</span>)</button>
-                        <button class="filter-pill" onclick="setStudyFilter('ON_CT_DEVICE', this)">💾 KT Qurilmasida (<span id="filter-ct-count">0</span>)</button>
-                        <button class="filter-pill" onclick="setStudyFilter('SENT', this)">✅ Yuborilganlar (<span id="filter-sent-count">0</span>)</button>
-                        <button class="filter-pill" onclick="setStudyFilter('PENDING', this)">⏳ Kutilmoqda (<span id="filter-pending-count">0</span>)</button>
+                <div class="filter-container" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- 1-qator: Tezkor Qidiruv va Jarayon / Holat tugmalari -->
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="study-search-input" class="search-input" style="flex: 1; min-width: 260px;" placeholder="🔍 Bemor F.I.Sh, ID, tekshiruv sohasi yoki sana bo'yicha qidiruv..." oninput="handleStudySearch(this.value)">
+                        <div class="filter-pills" style="margin-left: 0;">
+                            <button class="filter-pill active" onclick="setStudyFilter('ALL', this)">Barchasi (<span id="filter-all-count">0</span>)</button>
+                            <button class="filter-pill" onclick="setStudyFilter('IN_PROGRESS', this)" style="border-color: #3b82f6; color: #1d4ed8; font-weight: 600;">⚡ Jarayonda (<span id="filter-progress-count">0</span>)</button>
+                            <button class="filter-pill" onclick="setStudyFilter('LOCAL_STORED', this)" style="border-color: #10b981; color: #047857;">💾 Serverda (<span id="filter-stored-count">0</span>)</button>
+                            <button class="filter-pill" onclick="setStudyFilter('ON_CT_DEVICE', this)">☁️ Faqat KT da (<span id="filter-ct-count">0</span>)</button>
+                            <button class="filter-pill" onclick="setStudyFilter('SENT', this)">✅ Yuborilgan (<span id="filter-sent-count">0</span>)</button>
+                            <button class="filter-pill" onclick="setStudyFilter('FAILED', this)" style="border-color: #ef4444; color: #b91c1c;">❌ Xatolik (<span id="filter-failed-count">0</span>)</button>
+                        </div>
+                    </div>
+
+                    <!-- 2-qator: Kengaytirilgan filtrlar (Sana, Tekshiruv sohasi, Saralash) -->
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-weight: 600; color: #475569;">📅 Sana:</span>
+                            <select id="filter-date-preset" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0;" onchange="handleDatePresetChange(this.value)">
+                                <option value="ALL">Barcha sanalar</option>
+                                <option value="TODAY">Bugun</option>
+                                <option value="YESTERDAY">Kecha</option>
+                                <option value="LAST_7_DAYS">Oxirgi 7 kun</option>
+                                <option value="THIS_MONTH">Shu oy</option>
+                                <option value="CUSTOM">Aniq sana...</option>
+                            </select>
+                            <input type="date" id="filter-date-custom" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0; display: none;" onchange="applyStudyFilters()">
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-weight: 600; color: #475569;">🔬 Tekshiruv sohasi:</span>
+                            <select id="filter-exam-select" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0;" onchange="applyStudyFilters()">
+                                <option value="ALL">Barcha sohalar</option>
+                            </select>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
+                            <span style="font-weight: 600; color: #475569;">🔃 Saralash:</span>
+                            <select id="filter-sort-by" class="form-input" style="width: auto; padding: 5px 9px; margin-top: 0;" onchange="handleSortChange(this.value)">
+                                <option value="DATE_DESC">Sana (eng yangilar oldinda)</option>
+                                <option value="DATE_ASC">Sana (eskilar oldinda)</option>
+                                <option value="NAME_ASC">Bemor F.I.Sh (A - Z)</option>
+                                <option value="NAME_DESC">Bemor F.I.Sh (Z - A)</option>
+                                <option value="INSTANCES_DESC">Kadrlar soni (ko'pdan kamga)</option>
+                                <option value="INSTANCES_ASC">Kadrlar soni (kamdan ko'pga)</option>
+                            </select>
+                            <button class="btn btn-sm btn-secondary" onclick="resetAllFilters()" style="padding: 5px 9px;" title="Barcha filtrlarni tozalash">🔄 Tozalash</button>
+                        </div>
                     </div>
                 </div>
 
@@ -217,6 +258,34 @@
                 <div>
                     <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Telegram Kanal ID:</label>
                     <input type="text" id="setting-tg-channel" class="form-input" placeholder="-100...">
+                </div>
+
+                <div style="font-weight: 600; font-size: 0.88rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 6px;">
+                    ⚡ Avtomatlashtirish & Rekon Barqarorligi
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0;">
+                    <label style="font-size: 0.82rem; color: #1e293b; font-weight: 600;">Avtomatik yangi bemorlarni arxivlash:</label>
+                    <input type="checkbox" id="setting-auto-archive" style="width: 18px; height: 18px;">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Yangi bemorlarni so'rash (sek):</label>
+                        <input type="number" id="setting-poll-interval" class="form-input" placeholder="60">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Rekon barqarorligi (marta):</label>
+                        <input type="number" id="setting-stability-checks" class="form-input" placeholder="3">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Chuqur solishtirish (sek, 3soat=10800):</label>
+                        <input type="number" id="setting-deep-scan" class="form-input" placeholder="10800">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Parallel yuklash oqimlari (CPU):</label>
+                        <input type="number" id="setting-batch-conc" class="form-input" placeholder="2">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer" style="padding: 12px 24px; border-top: 1px solid #f1f5f9;">

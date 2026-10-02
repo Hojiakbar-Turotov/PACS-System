@@ -132,5 +132,27 @@
 - [x] **Portativ ZIP Paketi:**
   - Boshqa kompyuterga ko'chirish uchun `D:\PACS\PACS_System_Portable.zip` va `Install_And_Run.bat` fayli tayyorlandi.
 
+## 9. Ko'p Ustunli Filtrlar, Parallel Navbat, Rekon Barqarorligi va Windows Tray (02.10.2026)
+- [x] **Ko'p Ustunli va Jarayon Bo'yicha Filtrlar:**
+  - Sana bo'yicha tezkor filtrlar: "Bugun", "Kecha", "Oxirgi 7 kun", "Shu oy" va "Aniq sana...".
+  - Tekshiruv sohasi bo'yicha dinamik filtr (barcha sohalar ro'yxatdan tanlanadi).
+  - Bemor F.I.Sh, ID, tekshiruv sohasi va sana bo'yicha universal qidiruv.
+  - Jarayon va holat tugmalari: `Barchasi`, `⚡ Jarayonda`, `💾 Serverda`, `☁️ Faqat KT da`, `✅ Yuborilgan`, `❌ Xatolik`.
+  - Jadval ustunlari bo'yicha saralash (Sana, F.I.Sh, Kadrlar soni).
+- [x] **50+ Bemorni Parallel Navbatda Yuklash (Batch Worker Pool):**
+  - Bir vaqtda 50 ta bemor tanlanganda ham kompyuter qotib qolmasligi uchun `BatchQueueManager` yaratildi (`ThreadPoolExecutor`, 2 parallel oqim).
+  - Har bir bemor navbat bilan orqa fonda yuklab olinadi va Telegramga yetkaziladi.
+- [x] **Avtomatik Kuzatuv va Rekonstruksiya Barqarorligi Polleri (`AutoArchiveDaemon`):**
+  - Har 60 soniyada GE CT apparatidan yangi bemorlar so'raladi.
+  - Tekshiruv paytida kadrlar soni o'zgarib tursa (rekonstruksiya jarayonida), kadrlar soni ketma-ket 3 marta o'zgarmasdan turguncha kutib, so'ngra arxivlanadi (chala tekshiruv ketib qolishining oldi olindi).
+  - Har 3 soatda (10800 sek) KT apparatidagi barcha bemorlar tekshirilib, yangi kadrlar qo'shilgan bo'lsa avtomatik qayta arxivlanadi.
+- [x] **Windows Bildirishnomalar Maydoni (Tray) Ilovasi (`PACS_System.exe`):**
+  - C# da `NotifyIcon` bilan professional Windows Tray dasturi yaratildi.
+  - Ekran o'ng pastki burchagida (soat yonida) chiroyli firuza/ko'k rangli tibbiy xoch belgisi aks etadi.
+  - Sichqoncha 2 marta bosilganda boshqaruv paneli (`http://localhost:8000`) ochiladi.
+  - O'ng tugma menyusi: `🌐 Boshqaruv paneli`, `📋 Bugungi navbat (/list)`, `⚙️ Sozlamalar`, `🔄 Qayta ishga tushirish`, `🖥️ Windows bilan birga ishga tushish`, `❌ Chiqish va Dasturni to'xtatish`.
+  - Antigravity IDE ichidagi barcha vaqtinchalik vazifalar to'xtatildi — foydalanuvchi Antigravity'ni bemalol yopib qo'ysa ham, server fonda uzluksiz ishlaydi.
+
+
 
 

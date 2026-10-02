@@ -21,15 +21,18 @@ from core.dicom_engine import DicomEngine
 from core.ct_poller import CTPoller, sync_all_studies_from_ct, retrieve_study_from_ct
 from core.processor import process_completed_study
 from core.retention_manager import RetentionDaemon
+from core.auto_archive_service import AutoArchiveDaemon
+from core.batch_queue import batch_manager
 from telegram.dispatcher import send_study_to_telegram
 
 dicom_engine = None
 ct_poller = None
 retention_daemon = None
+auto_archive_daemon = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global dicom_engine, ct_poller, retention_daemon
+    global dicom_engine, ct_poller, retention_daemon, auto_archive_daemon
     print("[*] Sabadarmon MSKT PACS Tizimi yuklanmoqda...")
     
     # 1. DICOM Serverni ishga tushirish
@@ -43,8 +46,12 @@ async def lifespan(app: FastAPI):
     # 3. 30 kunlik saqlash va avtomatik tozalash xizmati
     retention_daemon = RetentionDaemon(check_interval_hours=6)
     retention_daemon.start()
+
+    # 4. Yangi bemorlarni avtomatik aniqlash, rekon barqarorligi va 3-soatlik qayta tekshirish xizmati
+    auto_archive_daemon = AutoArchiveDaemon()
+    auto_archive_daemon.start()
     
-    log_event("SYSTEM", "PACS Server, Worklist va GE CT monitoring tizimi to'liq faol")
+    log_event("SYSTEM", "PACS Server, Worklist, GE CT monitoring va Avto-arxiv xizmati faol")
     yield
     # To'xtatish
     if ct_poller:
@@ -53,6 +60,8 @@ async def lifespan(app: FastAPI):
         dicom_engine.stop()
     if retention_daemon:
         retention_daemon.stop()
+    if auto_archive_daemon:
+        auto_archive_daemon.stop()
     print("[*] Tizim to'xtatildi.")
 
 app = FastAPI(title="Sabadarmon MSKT PACS", lifespan=lifespan)
@@ -229,44 +238,11 @@ def resend_study_telegram(study_id: int, background_tasks: BackgroundTasks):
         return {"status": "retrieving", "detail": "KT apparatidan tasvirlar yuklab olinmoqda va Telegramga uzatiladi"}
 
 @app.post("/api/studies/batch_resend")
-def batch_resend_studies(req: BatchResendRequest, background_tasks: BackgroundTasks):
+def batch_resend_studies(req: BatchResendRequest):
     if not req.study_ids:
         raise HTTPException(status_code=400, detail="Kamida bitta tekshiruv tanlanishi kerak")
-        
-    conn = get_connection()
-    cursor = conn.cursor()
-    placeholders = ",".join("?" for _ in req.study_ids)
-    cursor.execute(f"SELECT * FROM studies WHERE id IN ({placeholders})", req.study_ids)
-    studies = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    
-    if not studies:
-        raise HTTPException(status_code=404, detail="Tanlangan tekshiruvlar topilmadi")
-        
-    def _process_batch(items):
-        for s in items:
-            try:
-                z_path = Path(s["archive_path"]) if s["archive_path"] else None
-                if z_path and z_path.exists():
-                    send_study_to_telegram(
-                        study_id=s["id"],
-                        patient_name=s["patient_name"],
-                        patient_id=s["patient_id"],
-                        study_desc=s["study_description"],
-                        study_date=s["study_date"],
-                        slices_count=s["instances_count"],
-                        zip_path=z_path,
-                        force=True
-                    )
-                    time.sleep(2)
-                else:
-                    retrieve_study_from_ct(s["study_instance_uid"])
-                    time.sleep(5)
-            except Exception as e:
-                log_event("ERROR", f"Batch yuborishda xatolik ({s.get('patient_name')}): {e}")
-                
-    background_tasks.add_task(_process_batch, studies)
-    return {"status": "started", "count": len(studies)}
+    count = batch_manager.enqueue_studies(req.study_ids)
+    return {"status": "started", "count": count}
 
 @app.post("/api/studies/{study_id}/download_to_server")
 def download_study_to_server(study_id: int, background_tasks: BackgroundTasks):
@@ -335,6 +311,11 @@ class SettingsUpdate(BaseModel):
     telegram_bot_token: str = ""
     telegram_channel_id: str = ""
     retention_days: int = 30
+    auto_archive_enabled: bool = True
+    new_study_poll_interval: int = 60
+    recon_stability_checks: int = 3
+    deep_scan_interval: int = 10800
+    batch_concurrency: int = 2
 
 @app.get("/api/settings")
 def get_system_settings():

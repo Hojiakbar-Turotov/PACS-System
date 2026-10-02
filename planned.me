@@ -270,4 +270,38 @@ D:\PACS\
    - Bazadagi ma'lumotlar (Bemor F.I.Sh, ID, tekshiruv sanasi, Telegram xabari) saqlanib qoladi.
    - Zarurat bo'lsa, istalgan vaqtda "📥 Yuklab olish & Telegram" bosilsa, KT apparatidan qayta yuklab olinishi mumkin bo'ladi.
 
+### 7.4. Ko'p Ustunli Saralash va Filtrlash Tizimi
+1. **Sana bo'yicha filtrlash:**
+   - Tezkor filtrlar: "Bugun", "Kecha", "Oxirgi 7 kun", "Shu oy" va "Aniq sana..." (Datepicker).
+2. **Tekshiruv sohasi filtri:**
+   - Apparatdan olingan barcha tekshiruv sohalari (Bosh miya, Ko'krak qafasi, Qorin bo'shlig'i va h.k.) dinamik yig'ilib ochiladigan ro'yxatda tanlanadi.
+3. **Jarayon va Holat tugmalari:**
+   - `Barchasi`, `⚡ Jarayonda`, `💾 Serverda`, `☁️ Faqat KT da`, `✅ Yuborilgan`, `❌ Xatolik`.
+4. **Ustunlar bo'yicha saralash:**
+   - Sana (kamayish/o'sish), Bemor F.I.Sh (A-Z / Z-A), Kadrlar soni (ko'pdan ozga / ozdan ko'pga).
+
+### 7.5. 50+ Bemorni Parallel Xavfsiz Navbatda Yuklash (Batch Worker Pool)
+1. Barcha yoki tanlangan 50 ta bemor bir vaqtda tanlanganda, kompyuterni qotirib qo'ymaslik uchun cheklangan ishchi oqimlari (`ThreadPoolExecutor`, default 2 worker) orqali navbat boshqariladi (`core/batch_queue.py`).
+2. Har bir tekshiruv navbatma-navbat C-MOVE yoki mahalliy arxivdan olinib, MB/s tezligi hisoblangan holda xavfsiz Telegramga yuboriladi.
+
+### 7.6. Avtomatik Arxivlash va Rekonstruksiya Barqarorligi Polleri (AutoArchiveDaemon)
+1. **Tezkor kuzatuv (60 soniya):**
+   - Dastur har 60 soniyada GE CT apparatidan yangi kelgan tekshiruvlarni so'raydi.
+2. **Rekonstruksiya barqarorligi (Recon Stability):**
+   - Laborant tekshiruv o'tkazayotgan vaqtda kadrlar soni oshib turadi (masalan: 120 -> 350 -> 826 kadr).
+   - Agar darhol tortib olinsa, to'liq bo'lmagan tekshiruv yuborilib qoladi.
+   - Shuning uchun barqarorlik tekshiruvi joriy etildi: kadrlar soni ketma-ket 3 marta (har 60s dan) o'zgarmasdan tursa, rekon tugagan deb hisoblanadi va avtomatik yuklab olinadi.
+3. **Chuqur qayta solishtirish (har 3 soatda = 10800 sek):**
+   - Apparatdagi barcha bemorlar tekshiriladi; agar biror bemorda yangi kadrlar qo'shilgan bo'lsa, avtomatik qayta arxivlanadi.
+
+### 7.7. Windows Tray Ilovasi va Antigravity'siz Fonda Ishlash (PACS_System.exe)
+1. Dastur Windows bildirishnomalar maydonida (soat yonidagi Tray) ishlaydi.
+2. Foydalanuvchi Antigravity IDE ni to'liq yopib keta oladi. Dastur fonda uzluksiz ishlayveradi.
+3. Tray ikonkasiga bosganda:
+   - "🌐 Boshqaruv paneli"
+   - "📋 Bugungi navbat (/list)"
+   - "⚙️ Sozlamalar"
+   - "🖥️ Windows bilan birga ishga tushish" (Avto-start)
+   - "❌ Chiqish va Dasturni to'xtatish" (Barcha orqa fon jarayonlarini to'liq to'xtatadi).
+
 

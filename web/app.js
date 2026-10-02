@@ -133,21 +133,94 @@ function toggleSelectAllStudies(masterCheckbox) {
     updateSelectedCount();
 }
 
+let currentDatePreset = 'ALL';
+let currentExamFilter = 'ALL';
+let currentSortBy = 'DATE_DESC';
+
+function populateExamFilterOptions() {
+    const examSelect = document.getElementById('filter-exam-select');
+    if (!examSelect) return;
+    const currentVal = examSelect.value;
+    const exams = new Set();
+    allStudies.forEach(s => {
+        const desc = (s.study_description || '').trim();
+        if (desc && desc !== '-' && desc !== 'None') {
+            exams.add(desc);
+        }
+    });
+    const sortedExams = Array.from(exams).sort();
+    examSelect.innerHTML = `<option value="ALL">Barcha sohalar</option>` + sortedExams.map(e => `<option value="${e}">${e}</option>`).join('');
+    if (sortedExams.includes(currentVal)) {
+        examSelect.value = currentVal;
+    }
+}
+
+function handleDatePresetChange(val) {
+    currentDatePreset = val;
+    const customInput = document.getElementById('filter-date-custom');
+    if (customInput) {
+        customInput.style.display = (val === 'CUSTOM') ? 'inline-block' : 'none';
+        if (val !== 'CUSTOM') customInput.value = '';
+    }
+    currentStudyPage = 1;
+    applyStudyFilters();
+}
+
+function handleSortChange(val) {
+    currentSortBy = val;
+    applyStudyFilters();
+}
+
+function resetAllFilters() {
+    currentSearchQuery = '';
+    currentStudyFilter = 'ALL';
+    currentDatePreset = 'ALL';
+    currentExamFilter = 'ALL';
+    currentSortBy = 'DATE_DESC';
+
+    const searchInput = document.getElementById('study-search-input');
+    if (searchInput) searchInput.value = '';
+    const datePreset = document.getElementById('filter-date-preset');
+    if (datePreset) datePreset.value = 'ALL';
+    const dateCustom = document.getElementById('filter-date-custom');
+    if (dateCustom) { dateCustom.value = ''; dateCustom.style.display = 'none'; }
+    const examSelect = document.getElementById('filter-exam-select');
+    if (examSelect) examSelect.value = 'ALL';
+    const sortSelect = document.getElementById('filter-sort-by');
+    if (sortSelect) sortSelect.value = 'DATE_DESC';
+
+    document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+    const allBtn = document.querySelector('.filter-pill[onclick*="ALL"]');
+    if (allBtn) allBtn.classList.add('active');
+
+    currentStudyPage = 1;
+    applyStudyFilters();
+}
+
 function updateFilterCounts() {
     const total = allStudies.length;
+    const inProgressCount = allStudies.filter(s => {
+        const st = s.active_stage || '';
+        return (st === 'DOWNLOADING_CT' || st === 'ARCHIVING' || st === 'UPLOADING_TG' || s.telegram_status === 'RETRIEVING' || s.telegram_status === 'SENDING');
+    }).length;
+    const storedCount = allStudies.filter(s => s.has_local_copy).length;
     const ctCount = allStudies.filter(s => s.telegram_status === 'ON_CT_DEVICE').length;
     const sentCount = allStudies.filter(s => s.telegram_status === 'SENT').length;
-    const pendingCount = allStudies.filter(s => s.telegram_status === 'PENDING' || s.telegram_status === 'RETRIEVING' || s.telegram_status === 'SENDING').length;
+    const failedCount = allStudies.filter(s => s.telegram_status === 'FAILED').length;
 
     const elAll = document.getElementById('filter-all-count');
+    const elProg = document.getElementById('filter-progress-count');
+    const elStored = document.getElementById('filter-stored-count');
     const elCt = document.getElementById('filter-ct-count');
     const elSent = document.getElementById('filter-sent-count');
-    const elPending = document.getElementById('filter-pending-count');
+    const elFailed = document.getElementById('filter-failed-count');
 
     if (elAll) elAll.innerText = total;
+    if (elProg) elProg.innerText = inProgressCount;
+    if (elStored) elStored.innerText = storedCount;
     if (elCt) elCt.innerText = ctCount;
     if (elSent) elSent.innerText = sentCount;
-    if (elPending) elPending.innerText = pendingCount;
+    if (elFailed) elFailed.innerText = failedCount;
 }
 
 function handleStudySearch(query) {
@@ -165,13 +238,55 @@ function setStudyFilter(filterKey, buttonElem) {
 }
 
 function applyStudyFilters() {
-    filteredStudies = allStudies.filter(s => {
-        // Status filter
-        if (currentStudyFilter === 'ON_CT_DEVICE' && s.telegram_status !== 'ON_CT_DEVICE') return false;
-        if (currentStudyFilter === 'SENT' && s.telegram_status !== 'SENT') return false;
-        if (currentStudyFilter === 'PENDING' && !(s.telegram_status === 'PENDING' || s.telegram_status === 'RETRIEVING' || s.telegram_status === 'SENDING')) return false;
+    const examSelect = document.getElementById('filter-exam-select');
+    const selectedExam = examSelect ? examSelect.value : 'ALL';
+    const customDateInput = document.getElementById('filter-date-custom');
+    const customDateVal = customDateInput ? customDateInput.value.replace(/-/g, '') : '';
 
-        // Search query filter
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const yest = new Date(now.getTime() - 86400000);
+    const yesterdayStr = yest.toISOString().slice(0, 10).replace(/-/g, '');
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10).replace(/-/g, '');
+    const thisMonthPrefix = now.toISOString().slice(0, 7).replace(/-/g, '');
+
+    filteredStudies = allStudies.filter(s => {
+        // Status pill filter
+        if (currentStudyFilter === 'IN_PROGRESS') {
+            const st = s.active_stage || '';
+            const isProg = (st === 'DOWNLOADING_CT' || st === 'ARCHIVING' || st === 'UPLOADING_TG' || s.telegram_status === 'RETRIEVING' || s.telegram_status === 'SENDING');
+            if (!isProg) return false;
+        } else if (currentStudyFilter === 'LOCAL_STORED') {
+            if (!s.has_local_copy) return false;
+        } else if (currentStudyFilter === 'ON_CT_DEVICE') {
+            if (s.telegram_status !== 'ON_CT_DEVICE') return false;
+        } else if (currentStudyFilter === 'SENT') {
+            if (s.telegram_status !== 'SENT') return false;
+        } else if (currentStudyFilter === 'FAILED') {
+            if (s.telegram_status !== 'FAILED') return false;
+        }
+
+        // Exam description filter
+        if (selectedExam !== 'ALL') {
+            if ((s.study_description || '').trim() !== selectedExam) return false;
+        }
+
+        // Date filter
+        const sDate = String(s.study_date || '').replace(/\D/g, '');
+        if (currentDatePreset === 'TODAY') {
+            if (sDate !== todayStr) return false;
+        } else if (currentDatePreset === 'YESTERDAY') {
+            if (sDate !== yesterdayStr) return false;
+        } else if (currentDatePreset === 'LAST_7_DAYS') {
+            if (sDate < sevenDaysAgoStr || sDate > todayStr) return false;
+        } else if (currentDatePreset === 'THIS_MONTH') {
+            if (!sDate.startsWith(thisMonthPrefix)) return false;
+        } else if (currentDatePreset === 'CUSTOM' && customDateVal) {
+            if (sDate !== customDateVal) return false;
+        }
+
+        // Search query filter (F.I.Sh, ID, description, date)
         if (currentSearchQuery) {
             const name = (s.patient_name || '').toLowerCase();
             const pid = (s.patient_id || '').toLowerCase();
@@ -182,6 +297,24 @@ function applyStudyFilters() {
             }
         }
         return true;
+    });
+
+    // Sorting
+    filteredStudies.sort((a, b) => {
+        if (currentSortBy === 'DATE_DESC') {
+            return String(b.study_date || '').localeCompare(String(a.study_date || '')) || String(b.study_time || '').localeCompare(String(a.study_time || ''));
+        } else if (currentSortBy === 'DATE_ASC') {
+            return String(a.study_date || '').localeCompare(String(b.study_date || '')) || String(a.study_time || '').localeCompare(String(b.study_time || ''));
+        } else if (currentSortBy === 'NAME_ASC') {
+            return String(a.patient_name || '').localeCompare(String(b.patient_name || ''));
+        } else if (currentSortBy === 'NAME_DESC') {
+            return String(b.patient_name || '').localeCompare(String(a.patient_name || ''));
+        } else if (currentSortBy === 'INSTANCES_DESC') {
+            return (b.instances_count || 0) - (a.instances_count || 0);
+        } else if (currentSortBy === 'INSTANCES_ASC') {
+            return (a.instances_count || 0) - (b.instances_count || 0);
+        }
+        return 0;
     });
 
     renderStudiesTable();
@@ -332,6 +465,7 @@ async function loadStudies() {
         if (archCount) archCount.innerText = allStudies.length;
 
         updateFilterCounts();
+        populateExamFilterOptions();
         applyStudyFilters();
         checkActiveProgresses();
     } catch (err) {
@@ -629,6 +763,21 @@ async function openSettingsModal() {
             document.getElementById('setting-retention-days').value = cfg.retention_days || 30;
             document.getElementById('setting-tg-token').value = cfg.telegram_bot_token || '';
             document.getElementById('setting-tg-channel').value = cfg.telegram_channel_id || '';
+            if (document.getElementById('setting-auto-archive')) {
+                document.getElementById('setting-auto-archive').checked = cfg.auto_archive_enabled !== false;
+            }
+            if (document.getElementById('setting-poll-interval')) {
+                document.getElementById('setting-poll-interval').value = cfg.new_study_poll_interval || 60;
+            }
+            if (document.getElementById('setting-stability-checks')) {
+                document.getElementById('setting-stability-checks').value = cfg.recon_stability_checks || 3;
+            }
+            if (document.getElementById('setting-deep-scan')) {
+                document.getElementById('setting-deep-scan').value = cfg.deep_scan_interval || 10800;
+            }
+            if (document.getElementById('setting-batch-conc')) {
+                document.getElementById('setting-batch-conc').value = cfg.batch_concurrency || 2;
+            }
         }
     } catch (e) {
         console.error("Sozlamalarni olishda xatolik:", e);
@@ -657,7 +806,12 @@ async function saveSettingsFromModal() {
         web_port: parseInt(document.getElementById('setting-web-port').value) || 8000,
         retention_days: parseInt(document.getElementById('setting-retention-days').value) || 30,
         telegram_bot_token: document.getElementById('setting-tg-token').value.trim(),
-        telegram_channel_id: document.getElementById('setting-tg-channel').value.trim()
+        telegram_channel_id: document.getElementById('setting-tg-channel').value.trim(),
+        auto_archive_enabled: document.getElementById('setting-auto-archive') ? document.getElementById('setting-auto-archive').checked : true,
+        new_study_poll_interval: parseInt(document.getElementById('setting-poll-interval')?.value) || 60,
+        recon_stability_checks: parseInt(document.getElementById('setting-stability-checks')?.value) || 3,
+        deep_scan_interval: parseInt(document.getElementById('setting-deep-scan')?.value) || 10800,
+        batch_concurrency: parseInt(document.getElementById('setting-batch-conc')?.value) || 2
     };
 
     try {

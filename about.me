@@ -84,14 +84,24 @@ Laborant yoki shifokor hech narsa qilishi shart emas:
 
 ---
 
-## 3. TIZIMNI ISHGA TUSHIRISH, AVTOSTART VA TO'XTATISH
+## 3. TIZIMNI ISHGA TUSHIRISH, AVTOSTART, TRAY VA TO'XTATISH
 
 Barcha fayllar va dasturlar `D:\PACS\` papkasida joylashgan:
-- **Birinchi marta ishga tushirish:** `D:\PACS\PACS_System.exe` fayliga 2 marta bosing. U serverni orqa fonda ishga tushiradi, brauzerni ochadi va tizimni avtomatik ravishda Windows yuklanishiga qo'shadi!
+- **Ishga tushirish:** `D:\PACS\PACS_System.exe` fayliga 2 marta bosing. U serverni orqa fonda ishga tushiradi, brauzerni ochadi va Windows bildirishnomalar maydonida (o'ng pastki burchakdagi soat yonida) chiroyli firuza/ko'k rangli tibbiy xoch ikonkasini joylashtiradi!
 - **Windows bilan birga avtomatik ishlash (24/7):** Dastur Windows reestriga (`Run`) qo'shilgan bo'lib, har safar kompyuter yoqilganda fonda avtomatik ishlay boshlaydi. Antigravity IDE yoki boshqa oynalar yopilsa ham u mustaqil ishlayveradi.
+- **Tizim tepsisi (System Tray) orqali boshqarish:**
+  - O'ng pastki burchakdagi ikonka ustiga 2 marta bossangiz — darhol boshqaruv paneli ochiladi.
+  - Sichqonchaning o'ng tugmasini bossangiz:
+    - `🌐 Boshqaruv paneli (localhost:8000)`
+    - `📋 Bugungi navbat (/list)`
+    - `⚙️ Sozlamalar`
+    - `🔄 Serverni qayta ishga tushirish`
+    - `🖥️ Windows bilan birga ishga tushish` (Avtostartni yoqish/o'chirish)
+    - `❌ Chiqish va Dasturni to'xtatish` — serverni va barcha orqa fon jarayonlarini to'liq xavfsiz to'xtatadi.
 - **Kompyuter o'chganda:** Windows avtomatik ravishda PACS jarayonini xavfsiz to'xtatadi.
-- **Tizimni qo'lda to'xtatish:** `D:\PACS\scripts\stop_all.bat` fayliga bosing.
-- **Tarmoq va Port Sozlamalari:** Veb-panelda yuqori o'ng burchakdagi **"⚙️ Sozlamalar"** tugmasini bosing va GE CT IP, port, PACS port yoki Telegram parametrlarini bemalol o'zgartiring.
+- **Avtomatlashtirish & Rekonstruksiya barqarorligi:** Dastur har 60 soniyada GE CT apparatidan yangi bemorlarni so'raydi. Bemor skanerlanayotgan vaqtda kadrlar soni o'zgarib tursa, kadrlar soni ketma-ket 3 marta o'zgarmasdan turguncha kutadi va so'ngra avtomatik arxivlaydi. Har 3 soatda (10800 sek) esa barcha bemorlar to'liq qayta tekshirilib chiqiladi.
+- **Parallel yuklash:** 50 va undan ortiq bemor tanlanganda kompyuter qotib qolmasligi uchun yuklash maxsus 2 ta parallel oqimda amalga oshiriladi.
+- **Tarmoq va Port Sozlamalari:** Veb-panelda yuqori o'ng burchakdagi **"⚙️ Sozlamalar"** tugmasini bosing va GE CT IP, port, PACS port, avto-arxiv yoki Telegram parametrlarini bemalol o'zgartiring.
 
 ---
 
