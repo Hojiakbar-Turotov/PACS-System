@@ -137,6 +137,31 @@
                     </div>
                 </div>
 
+                <!-- YUQORI SAHIFALASH VA KO'RISH SONI (TOP PAGINATION) -->
+                <div class="pagination-top-bar" id="top-pagination-bar">
+                    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                        <div>
+                            Ko'rsatilmoqda: <strong id="top-pagination-info">0 - 0</strong> / Jami: <strong id="top-pagination-total">0</strong> ta bemor
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-weight: 600; color: #475569;">📄 Sahifada:</span>
+                            <select id="select-page-size-top" class="form-input" style="width: auto; padding: 4px 8px; margin: 0; font-weight: 600;" onchange="changePageSize(this.value)">
+                                <option value="50">50 ta bemor</option>
+                                <option value="100">100 ta bemor</option>
+                                <option value="200">200 ta bemor</option>
+                                <option value="500">500 ta bemor</option>
+                                <option value="1000">1000 ta bemor</option>
+                                <option value="999999">Barchasi (Hammasi)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pagination-buttons" id="top-pagination-buttons">
+                        <button class="page-btn" id="btn-top-prev" onclick="changeStudyPage(-1)" disabled>◀ Oldingi</button>
+                        <span style="font-weight: 600; padding: 0 4px;" id="top-page-num-display">1 / 1</span>
+                        <button class="page-btn" id="btn-top-next" onclick="changeStudyPage(1)" disabled>Keyingi ▶</button>
+                    </div>
+                </div>
+
                 <div class="table-responsive">
                     <table class="data-table">
                         <thead>
@@ -160,16 +185,9 @@
                     </table>
                 </div>
 
-                <!-- PAGINATION BOSHQARUVI -->
-                <div class="pagination-controls">
-                    <div>
-                        Ko'rsatilmoqda: <strong id="pagination-info">0 - 0</strong> / Jami: <strong id="pagination-total">0</strong> ta tekshiruv
-                    </div>
-                    <div class="pagination-buttons">
-                        <button class="page-btn" id="btn-page-prev" onclick="changeStudyPage(-1)" disabled>◀ Oldingi</button>
-                        <span style="font-weight: 600;" id="page-num-display">1 / 1</span>
-                        <button class="page-btn" id="btn-page-next" onclick="changeStudyPage(1)" disabled>Keyingi ▶</button>
-                    </div>
+                <!-- GOOGLE USLUBIDAGI PASTKI SAHIFALASH (BOTTOM GOOGLE PAGINATION) -->
+                <div class="google-pagination-container" id="bottom-google-pagination">
+                    <!-- Dinamik ravishda renderGooglePagination tomonidan chiziladi -->
                 </div>
             </div>
         </main>

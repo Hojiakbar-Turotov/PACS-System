@@ -321,5 +321,19 @@ D:\PACS\
    - `core/database.py` da global qayta kiruvchi qulf (`DB_LOCK`) va xavfsiz tranzaksiya boshqaruvi joriy qilindi.
    - SQLite `PRAGMA busy_timeout=60000`, `journal_mode=WAL` va `synchronous=NORMAL` sozlamalari bilan bir vaqtda bir nechta oqimlar xavfsiz ishlaydigan qilindi.
 
+### 7.9. Google Uslubidagi Sahifalash va Saqlash Joyini Avtomatik Tozalash (Storage Cleanup)
+1. **Dinamik Sahifalash (Top & Bottom Dual Pagination):**
+   - Jadval tepasida va pastida bir xil qulaylikdagi navigatsiya paneli qo'shildi.
+   - Sahifadagi bemorlar soni selektori: 50, 100, 200, 500, 1000 yoki "Barchasi"ni tanlash imkoniyati.
+2. **Google Uslubidagi Sahifalash Vidjeti:**
+   - Google qidiruv natijalari sahifalash uslubidagi rang-barang harflar va sahifa raqamlari.
+   - Sarlavha: *"🌿 Sabadarmon MSKT PACS & Worklist"*.
+   - `< Oldingisi` va `Keyingisi >` qulay o'tish tugmalari hamda aktiv sahifa ko'rsatkichi.
+3. **ZIP Arxivlangach Xom Papkalarni Avtomatik O'chirish (Disk Tejamkorligi):**
+   - RadiAnt DICOM Viewer arxivlangan `.zip` fayllarni to'g'ridan-to'g'ri o'zi ochib ko'rsatish qobiliyatiga ega.
+   - Bemor tekshiruvi `archives/` papkasiga ZIP qilib arxivlangach, `storage/` dagi minglab ochiq DICOM fayllari avtomatik xavfsiz o'chiriladi.
+   - Eski takroriy 63 ta ochiq papka tozalab tashlandi va SSD diskdan 15 GB (15,359 MB) bo'sh joy tejaldi.
+   - RadiAnt'da ochish harakati endi to'g'ridan-to'g'ri `.zip` arxivga yo'naltirilgan.
+
 
 

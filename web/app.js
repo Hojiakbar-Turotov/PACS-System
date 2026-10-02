@@ -72,7 +72,7 @@ let filteredStudies = [];
 let currentStudyFilter = 'ALL';
 let currentSearchQuery = '';
 let currentStudyPage = 1;
-const studyPageSize = 50;
+let studyPageSize = 50;
 let selectedStudyIds = new Set();
 let activeProgressPollTimer = null;
 
@@ -320,13 +320,126 @@ function applyStudyFilters() {
     renderStudiesTable();
 }
 
+function changePageSize(newSize) {
+    studyPageSize = parseInt(newSize) || 50;
+    currentStudyPage = 1;
+    
+    // Ikkala selektorni sinxronlash
+    const topSel = document.getElementById('select-page-size-top');
+    if (topSel) topSel.value = String(studyPageSize);
+    const btmSel = document.getElementById('select-page-size-bottom');
+    if (btmSel) btmSel.value = String(studyPageSize);
+
+    renderStudiesTable();
+}
+
+function goToStudyPage(pageNum) {
+    const totalPages = Math.ceil(filteredStudies.length / studyPageSize) || 1;
+    if (pageNum >= 1 && pageNum <= totalPages) {
+        currentStudyPage = pageNum;
+        renderStudiesTable();
+
+        // Agar pastdan bosilgan bo'lsa, jadval boshiga silliq olib chiqish
+        const tableCard = document.querySelector('.table-responsive');
+        if (tableCard) {
+            tableCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
 function changeStudyPage(delta) {
     const totalPages = Math.ceil(filteredStudies.length / studyPageSize) || 1;
     const newPage = currentStudyPage + delta;
     if (newPage >= 1 && newPage <= totalPages) {
-        currentStudyPage = newPage;
-        renderStudiesTable();
+        goToStudyPage(newPage);
     }
+}
+
+function renderGooglePagination() {
+    const container = document.getElementById('bottom-google-pagination');
+    if (!container) return;
+
+    if (filteredStudies.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const totalPages = Math.ceil(filteredStudies.length / studyPageSize) || 1;
+    const startIdx = (currentStudyPage - 1) * studyPageSize;
+    const endIdx = Math.min(startIdx + studyPageSize, filteredStudies.length);
+
+    // Google ranglar palitrasi: Moviy, Qizil, Sariq, Yashil
+    const colors = ['#4285F4', '#EA4335', '#FBBC05', '#34A853'];
+
+    // Ko'rsatiladigan sahifalar oralig'i (maksimal 10 ta sahifa darchasi)
+    const maxVisible = 10;
+    let startPage = Math.max(1, currentStudyPage - Math.floor(maxVisible / 2));
+    let endPage = startPage + maxVisible - 1;
+    if (endPage > totalPages) {
+        endPage = totalPages;
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+
+    // Har bir sahifa uchun Google harflari ('o' lar)
+    let lettersHtml = '';
+    for (let p = startPage; p <= endPage; p++) {
+        const isActive = (p === currentStudyPage);
+        const color = isActive ? '#EA4335' : colors[(p - 1) % colors.length];
+        lettersHtml += `
+            <div class="google-letter-col ${isActive ? 'active' : ''}" onclick="goToStudyPage(${p})" title="${p}-sahifaga o'tish">
+                <span class="g-char" style="color: ${color}; ${isActive ? 'font-size: 2.3rem;' : ''}">o</span>
+                <span class="g-num">${p}</span>
+            </div>
+        `;
+    }
+
+    const hasPrev = currentStudyPage > 1;
+    const hasNext = currentStudyPage < totalPages;
+
+    const prevHtml = hasPrev
+        ? `<div class="google-nav-btn" onclick="goToStudyPage(${currentStudyPage - 1})" title="Oldingi sahifa">
+               <span style="font-size: 1.15rem; line-height: 1;">‹</span> Oldingisi
+           </div>`
+        : `<div class="google-nav-btn disabled">‹ Oldingisi</div>`;
+
+    const nextHtml = hasNext
+        ? `<div class="google-nav-btn" onclick="goToStudyPage(${currentStudyPage + 1})" title="Keyingi sahifa">
+               Keyingisi <span style="font-size: 1.15rem; line-height: 1;">›</span>
+           </div>`
+        : `<div class="google-nav-btn disabled">Keyingisi ›</div>`;
+
+    container.innerHTML = `
+        <div class="google-brand-title">
+            <span class="brand-leaf">🌿</span>
+            <span class="brand-word">Sabadarmon</span>
+            <span class="brand-sub">MSKT PACS & Worklist</span>
+        </div>
+        <div class="google-letters-row">
+            ${prevHtml}
+            <div style="display: flex; align-items: flex-end; gap: 2px;">
+                <span class="g-char" style="color: #4285F4; margin-right: 1px;">S</span>
+                ${lettersHtml}
+                <span class="g-char" style="color: #4285F4; margin-left: 1px;">n</span>
+            </div>
+            ${nextHtml}
+        </div>
+        <div class="google-bottom-meta">
+            <div>
+                Ko'rsatilmoqda: <strong>${startIdx + 1}–${endIdx}</strong> / Jami: <strong>${filteredStudies.length}</strong> ta bemor (${currentStudyPage} / ${totalPages} sahifa)
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-weight: 600;">📄 Sahifada:</span>
+                <select id="select-page-size-bottom" class="form-input" style="width: auto; padding: 4px 8px; margin: 0; font-weight: 600;" onchange="changePageSize(this.value)">
+                    <option value="50" ${studyPageSize === 50 ? 'selected' : ''}>50 ta bemor</option>
+                    <option value="100" ${studyPageSize === 100 ? 'selected' : ''}>100 ta bemor</option>
+                    <option value="200" ${studyPageSize === 200 ? 'selected' : ''}>200 ta bemor</option>
+                    <option value="500" ${studyPageSize === 500 ? 'selected' : ''}>500 ta bemor</option>
+                    <option value="1000" ${studyPageSize === 1000 ? 'selected' : ''}>1000 ta bemor</option>
+                    <option value="999999" ${studyPageSize >= 999999 ? 'selected' : ''}>Barchasi (Hammasi)</option>
+                </select>
+            </div>
+        </div>
+    `;
 }
 
 function renderStudiesTable() {
@@ -336,16 +449,19 @@ function renderStudiesTable() {
 
     if (filteredStudies.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #94a3b8; padding: 24px;">Hech qanday tekshiruv topilmadi.</td></tr>`;
-        const elInfo = document.getElementById('pagination-info');
-        const elTotal = document.getElementById('pagination-total');
-        const elPage = document.getElementById('page-num-display');
-        const btnPrev = document.getElementById('btn-page-prev');
-        const btnNext = document.getElementById('btn-page-next');
-        if (elInfo) elInfo.innerText = "0 - 0";
-        if (elTotal) elTotal.innerText = "0";
-        if (elPage) elPage.innerText = "1 / 1";
-        if (btnPrev) btnPrev.disabled = true;
-        if (btnNext) btnNext.disabled = true;
+        
+        const topInfo = document.getElementById('top-pagination-info');
+        const topTotal = document.getElementById('top-pagination-total');
+        const topPageDisp = document.getElementById('top-page-num-display');
+        const btnTopPrev = document.getElementById('btn-top-prev');
+        const btnTopNext = document.getElementById('btn-top-next');
+        if (topInfo) topInfo.innerText = "0 - 0";
+        if (topTotal) topTotal.innerText = "0";
+        if (topPageDisp) topPageDisp.innerText = "1 / 1";
+        if (btnTopPrev) btnTopPrev.disabled = true;
+        if (btnTopNext) btnTopNext.disabled = true;
+
+        renderGooglePagination();
         return;
     }
 
@@ -356,18 +472,23 @@ function renderStudiesTable() {
     const endIdx = Math.min(startIdx + studyPageSize, filteredStudies.length);
     const pageItems = filteredStudies.slice(startIdx, endIdx);
 
-    // Update pagination controls
-    const elInfo = document.getElementById('pagination-info');
-    const elTotal = document.getElementById('pagination-total');
-    const elPage = document.getElementById('page-num-display');
-    const btnPrev = document.getElementById('btn-page-prev');
-    const btnNext = document.getElementById('btn-page-next');
+    // Yuqori sahifalash satrini yangilash
+    const topInfo = document.getElementById('top-pagination-info');
+    const topTotal = document.getElementById('top-pagination-total');
+    const topPageDisp = document.getElementById('top-page-num-display');
+    const btnTopPrev = document.getElementById('btn-top-prev');
+    const btnTopNext = document.getElementById('btn-top-next');
+    const selTopSize = document.getElementById('select-page-size-top');
 
-    if (elInfo) elInfo.innerText = `${startIdx + 1} - ${endIdx}`;
-    if (elTotal) elTotal.innerText = filteredStudies.length;
-    if (elPage) elPage.innerText = `${currentStudyPage} / ${totalPages}`;
-    if (btnPrev) btnPrev.disabled = (currentStudyPage <= 1);
-    if (btnNext) btnNext.disabled = (currentStudyPage >= totalPages);
+    if (topInfo) topInfo.innerText = `${startIdx + 1}–${endIdx}`;
+    if (topTotal) topTotal.innerText = filteredStudies.length;
+    if (topPageDisp) topPageDisp.innerText = `${currentStudyPage} / ${totalPages}`;
+    if (btnTopPrev) btnTopPrev.disabled = (currentStudyPage <= 1);
+    if (btnTopNext) btnTopNext.disabled = (currentStudyPage >= totalPages);
+    if (selTopSize) selTopSize.value = String(studyPageSize);
+
+    // Pastki Google sahifalashni chizish
+    renderGooglePagination();
 
     tbody.innerHTML = pageItems.map(s => {
         const sizeMb = s.archive_size_bytes ? (s.archive_size_bytes / (1024 * 1024)).toFixed(1) + ' MB' : '-';

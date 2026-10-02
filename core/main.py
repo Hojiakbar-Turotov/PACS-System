@@ -290,10 +290,10 @@ def open_in_radiant(study_id: int):
         raise HTTPException(status_code=500, detail=f"RadiAntViewer dasturi topilmadi: {RADIANT_EXE}")
         
     target_path = None
-    if row["storage_folder"] and Path(row["storage_folder"]).exists():
-        target_path = Path(row["storage_folder"])
-    elif row["archive_path"] and Path(row["archive_path"]).exists():
+    if row["archive_path"] and Path(row["archive_path"]).exists():
         target_path = Path(row["archive_path"])
+    elif row["storage_folder"] and Path(row["storage_folder"]).exists():
+        target_path = Path(row["storage_folder"])
         
     if not target_path:
         raise HTTPException(

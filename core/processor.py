@@ -117,59 +117,70 @@ def process_completed_study(study_uid, study_dir: Path, patient_id, patient_name
         create_study_zip(dcm_files, zip_path)
         zip_size = zip_path.stat().st_size
         
+        # 2.1. ZIP tayyor bo'lgach, disk joyini tejash uchun D:\PACS\storage dagi ochilgan papkani tozalash
+        import shutil
+        try:
+            if study_dir.exists() and zip_path.exists() and zip_size > 0:
+                shutil.rmtree(study_dir, ignore_errors=True)
+                log_event("INFO", f"🧹 Storage papkasi tozalandi, faqat 30 kunlik ZIP saqlanmoqda: {zip_filename}")
+        except Exception as e_clean:
+            logger.warning(f"Storage tozalashda ogohlantirish: {e_clean}")
+
         # 3. Bazaga yozish yoki yangilash
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        # Worklist holatini yangilash (agar bo'lsa)
-        cursor.execute("UPDATE worklist SET status = 'COMPLETED' WHERE patient_id = ?", (patient_id,))
-        
-        # Mavjudligini tekshirish
-        cursor.execute("SELECT id, instances_count, last_sent_instances, telegram_status, local_stored_at FROM studies WHERE study_instance_uid = ?", (study_uid,))
-        existing = cursor.fetchone()
-        
-        is_update = False
-        slices_count = len(dcm_files)
-        now_iso = datetime.now().isoformat()
-        
-        if existing:
-            study_db_id = existing["id"]
-            last_sent = existing["last_sent_instances"] or 0
-            old_status = existing["telegram_status"]
+        from core.database import DB_LOCK
+        with DB_LOCK:
+            conn = get_connection()
+            cursor = conn.cursor()
             
-            if old_status == 'SENT' and last_sent > 0 and last_sent != slices_count:
-                is_update = True
+            # Worklist holatini yangilash (agar bo'lsa)
+            cursor.execute("UPDATE worklist SET status = 'COMPLETED' WHERE patient_id = ?", (patient_id,))
+            
+            # Mavjudligini tekshirish
+            cursor.execute("SELECT id, instances_count, last_sent_instances, telegram_status, local_stored_at FROM studies WHERE study_instance_uid = ?", (study_uid,))
+            existing = cursor.fetchone()
+            
+            is_update = False
+            slices_count = len(dcm_files)
+            now_iso = datetime.now().isoformat()
+            
+            if existing:
+                study_db_id = existing["id"]
+                last_sent = existing["last_sent_instances"] or 0
+                old_status = existing["telegram_status"]
                 
-            cursor.execute("""
-                UPDATE studies SET
-                    instances_count = ?,
-                    storage_folder = ?,
-                    archive_path = ?,
-                    archive_size_bytes = ?,
-                    local_copy_status = 'STORED',
-                    local_stored_at = COALESCE(local_stored_at, ?),
-                    completed_at = ?
-                WHERE id = ?
-            """, (slices_count, str(study_dir), str(zip_path), zip_size, now_iso, now_iso, study_db_id))
-        else:
-            cursor.execute("""
-                INSERT INTO studies (
-                    study_instance_uid, patient_id, patient_name, study_date, study_time,
-                    study_description, modality, instances_count, storage_folder,
-                    archive_path, archive_size_bytes, preview_image_path, telegram_status,
-                    local_copy_status, local_stored_at,
-                    last_sent_instances, created_at, completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'STORED', ?, 0, ?, ?)
-            """, (
-                study_uid, patient_id, patient_name, study_date, datetime.now().strftime("%H:%M:%S"),
-                study_desc, modality, slices_count, str(study_dir),
-                str(zip_path), zip_size, str(preview_path) if has_preview else "",
-                now_iso, now_iso, now_iso
-            ))
-            study_db_id = cursor.lastrowid
-            
-        conn.commit()
-        conn.close()
+                if old_status == 'SENT' and last_sent > 0 and last_sent != slices_count:
+                    is_update = True
+                    
+                cursor.execute("""
+                    UPDATE studies SET
+                        instances_count = ?,
+                        storage_folder = '',
+                        archive_path = ?,
+                        archive_size_bytes = ?,
+                        local_copy_status = 'STORED',
+                        local_stored_at = COALESCE(local_stored_at, ?),
+                        completed_at = ?
+                    WHERE id = ?
+                """, (slices_count, str(zip_path), zip_size, now_iso, now_iso, study_db_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO studies (
+                        study_instance_uid, patient_id, patient_name, study_date, study_time,
+                        study_description, modality, instances_count, storage_folder,
+                        archive_path, archive_size_bytes, preview_image_path, telegram_status,
+                        local_copy_status, local_stored_at,
+                        last_sent_instances, created_at, completed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'PENDING', 'STORED', ?, 0, ?, ?)
+                """, (
+                    study_uid, patient_id, patient_name, study_date, datetime.now().strftime("%H:%M:%S"),
+                    study_desc, modality, slices_count,
+                    str(zip_path), zip_size, str(preview_path) if has_preview else "",
+                    now_iso, now_iso, now_iso
+                ))
+                study_db_id = cursor.lastrowid
+                
+            conn.commit()
+            conn.close()
         
         log_event("INFO", f"Arxiv tayyor: {zip_filename} ({round(zip_size / 1024 / 1024, 1)} MB, {slices_count} ta kadr)")
         

@@ -498,6 +498,162 @@ body {
     cursor: not-allowed;
 }
 
+/* YUQORI SAHIFALASH SATRI */
+.pagination-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 9px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.84rem;
+    color: #475569;
+}
+
+/* GOOGLE USLUBIDAGI PASTKI SAHIFALASH */
+.google-pagination-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 26px 12px 14px 12px;
+    margin-top: 16px;
+    border-top: 1px solid #e2e8f0;
+    user-select: none;
+    text-align: center;
+}
+
+.google-brand-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    margin-bottom: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #1e293b;
+}
+
+.google-brand-title .brand-leaf {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 2px 4px rgba(16, 185, 129, 0.2));
+}
+
+.google-brand-title .brand-word {
+    background: linear-gradient(135deg, #0284c7 0%, #10b981 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.google-brand-title .brand-sub {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-left: 4px;
+    -webkit-text-fill-color: #64748b;
+}
+
+.google-letters-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.google-letter-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    min-width: 28px;
+    padding: 0 4px;
+    text-decoration: none;
+    transition: transform 0.15s ease;
+}
+
+.google-letter-col:hover .g-char {
+    transform: translateY(-3px) scale(1.1);
+}
+
+.google-letter-col.active {
+    cursor: default;
+}
+
+.g-char {
+    font-size: 2.1rem;
+    font-weight: 800;
+    line-height: 1;
+    transition: transform 0.15s ease;
+    display: block;
+}
+
+.g-num {
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-top: 4px;
+    color: #0284c7;
+    transition: color 0.15s;
+}
+
+.google-letter-col:hover .g-num {
+    text-decoration: underline;
+}
+
+.google-letter-col.active .g-num {
+    color: #0f172a;
+    font-weight: 800;
+    text-decoration: none;
+    border-bottom: 2px solid #ef4444;
+}
+
+.google-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #0284c7;
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    transition: all 0.15s;
+    margin: 0 8px;
+}
+
+.google-nav-btn:hover {
+    background: #e0f2fe;
+    border-color: #7dd3fc;
+}
+
+.google-nav-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    color: #94a3b8;
+}
+
+.google-bottom-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    font-size: 0.84rem;
+    color: #64748b;
+}
+
 /* LIGHTWEIGHT MODAL / DIALOG BOXES */
 .modal-backdrop {
     position: fixed;
