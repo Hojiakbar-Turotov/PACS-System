@@ -18,12 +18,26 @@ class BatchQueueManager:
         self.active_batches = []
         self._executor = None
         self._concurrency = 2
+        self._cancel_flag = threading.Event()
         self._init_executor()
 
     def _init_executor(self):
         cfg = load_settings()
         self._concurrency = int(cfg.get("batch_concurrency", 2))
         self._executor = ThreadPoolExecutor(max_workers=self._concurrency, thread_name_prefix="BatchWorker")
+
+    def cancel_all(self):
+        """Barcha faol navbat va jarayonlarni darhol to'xtatish"""
+        with self.lock:
+            self._cancel_flag.set()
+            if self._executor:
+                self._executor.shutdown(wait=False, cancel_futures=True)
+            self._cancel_flag = threading.Event()
+            self._init_executor()
+
+        from core.progress_tracker import clear_all_progress
+        clear_all_progress()
+        log_event("WARNING", "🛑 Barcha faol jarayonlar to'xtatildi va navbat tozalandi")
 
     def enqueue_studies(self, study_ids: list[int]):
         """Bir nechta (masalan 50 ta) bemorni parallel xavfsiz navbatga qo'yish"""
@@ -102,6 +116,8 @@ class BatchQueueManager:
         return len(studies)
 
     def _process_single_archive(self, study: dict):
+        if self._cancel_flag.is_set():
+            return
         study_id = study["id"]
         patient_name = study.get("patient_name", "")
         uid = study.get("study_instance_uid", "")
@@ -118,6 +134,8 @@ class BatchQueueManager:
             log_event("ERROR", f"Arxivlash xatosi ({patient_name}): {e}")
 
     def _process_single_study(self, study: dict):
+        if self._cancel_flag.is_set():
+            return
         study_id = study["id"]
         patient_name = study.get("patient_name", "")
         uid = study.get("study_instance_uid", "")

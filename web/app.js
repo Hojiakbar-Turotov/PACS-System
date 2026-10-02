@@ -102,11 +102,16 @@ function updateSelectedCount() {
     const batchBtn = document.getElementById('btn-batch-telegram');
     const archiveCountSpan = document.getElementById('archive-selected-count');
     const archiveBtn = document.getElementById('btn-batch-archive');
+    const deleteCountSpan = document.getElementById('delete-selected-count');
+    const deleteBtn = document.getElementById('btn-batch-delete-local');
 
-    if (countSpan) countSpan.innerText = selectedStudyIds.size;
-    if (batchBtn) batchBtn.disabled = (selectedStudyIds.size === 0);
-    if (archiveCountSpan) archiveCountSpan.innerText = selectedStudyIds.size;
-    if (archiveBtn) archiveBtn.disabled = (selectedStudyIds.size === 0);
+    const cnt = selectedStudyIds.size;
+    if (countSpan) countSpan.innerText = cnt;
+    if (batchBtn) batchBtn.disabled = (cnt === 0);
+    if (archiveCountSpan) archiveCountSpan.innerText = cnt;
+    if (archiveBtn) archiveBtn.disabled = (cnt === 0);
+    if (deleteCountSpan) deleteCountSpan.innerText = cnt;
+    if (deleteBtn) deleteBtn.disabled = (cnt === 0);
 }
 
 function toggleStudySelect(id, checkbox) {
@@ -544,9 +549,25 @@ function renderStudiesTable() {
                 </div>
             `;
             actionBtn = `<button class="btn btn-sm btn-action-resend" disabled>📤 Yuklanmoqda...</button>`;
+        } else if (stage === 'DOWNLOADING_TG') {
+            const tgText = progressText || `Telegramdan olinmoqda: ${percent}%`;
+            statusBadge = `
+                <div class="progress-container">
+                    <span class="badge-status status-retrieving" style="font-size: 0.72rem; font-weight: 600;" title="${tgText}">📥 ${tgText}</span>
+                    <div class="progress-track"><div class="progress-fill ct-download" style="width: ${percent}%;"></div></div>
+                </div>
+            `;
+            actionBtn = `<button class="btn btn-sm btn-action-download" disabled>📥 Olinmoqda...</button>`;
         } else if (s.telegram_status === 'SENT') {
             statusBadge = '<span class="badge-status status-sent">✅ Yuborildi</span>';
-            actionBtn = `<button class="btn btn-sm btn-action-resend" onclick="resendTelegram(${s.id})">📤 Telegram</button>`;
+            let btns = `<button class="btn btn-sm btn-action-resend" onclick="resendTelegram(${s.id})">📤 Telegram</button>`;
+            if (!s.has_local_copy && s.telegram_message_id) {
+                btns = `<button class="btn btn-sm" onclick="downloadFromTelegram(${s.id})" style="background: #0284c7; color: white; border: none; padding: 4px 8px; font-weight: 600;" title="Telegram kanalidan ZIP arxivni qayta yuklab olish">📥 Telegramdan olish</button> ` + btns;
+            }
+            if (s.has_local_copy) {
+                btns += ` <button class="btn btn-sm" onclick="deleteLocalStorage(${s.id})" style="background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; padding: 4px 7px;" title="Serverdagi ZIP arxivni o'chirib diskdan joy bo'shatish">🗑️ O'chirish</button>`;
+            }
+            actionBtn = btns;
         } else if (s.telegram_status === 'ON_CT_DEVICE') {
             statusBadge = '<span class="badge-status status-on-ct" title="Fayllar KT apparatida">💾 KT Qurilmada</span>';
             actionBtn = `
@@ -558,7 +579,11 @@ function renderStudiesTable() {
             actionBtn = `<button class="btn btn-sm btn-action-resend" onclick="resendTelegram(${s.id})">🔄 Qayta urinish</button>`;
         } else {
             statusBadge = '<span class="badge-status status-pending">⏳ Kutilmoqda</span>';
-            actionBtn = `<button class="btn btn-sm btn-action-resend" onclick="resendTelegram(${s.id})">📤 Telegram</button>`;
+            let btns = `<button class="btn btn-sm btn-action-resend" onclick="resendTelegram(${s.id})">📤 Telegram</button>`;
+            if (s.has_local_copy) {
+                btns += ` <button class="btn btn-sm" onclick="deleteLocalStorage(${s.id})" style="background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; padding: 4px 7px;" title="Serverdagi ZIP arxivni o'chirib diskdan joy bo'shatish">🗑️ O'chirish</button>`;
+            }
+            actionBtn = btns;
         }
 
         return `
@@ -783,6 +808,252 @@ async function archiveAllStudies() {
             }
         }
     });
+}
+
+// Barcha faol jarayonlarni bekor qilish va to'xtatish
+async function cancelAllOperations() {
+    showDialog({
+        title: "Barcha jarayonlarni to'xtatish",
+        message: "Hozirda orqa fonda bajarilayotgan barcha yuklash, arxivlash va navbatdagi jarayonlarni darhol to'xtatish va tozalashni tasdiqlaysizmi?",
+        confirmText: "To'xtatish va tozalash",
+        onConfirm: async () => {
+            try {
+                const res = await fetch('/api/queue/cancel_all', { method: 'POST' });
+                const data = await res.json();
+                showDialog({
+                    title: "To'xtatildi",
+                    message: "✅ " + (data.message || "Barcha jarayonlar to'xtatildi va holat tozalandi!")
+                });
+                activeProgressMap = {};
+                await loadStudies();
+            } catch (err) {
+                showDialog({ title: "Xatolik", message: err.toString() });
+            }
+        }
+    });
+}
+
+// Bitta bemorni kompyuterdagi ZIP arxivini o'chirish (disk joyini tozalash)
+async function deleteLocalStorage(id) {
+    const study = allStudies.find(s => s.id === id);
+    if (!study) return;
+
+    showDialog({
+        title: "Serverdan fayllarni tozalash",
+        message: `Ushbu bemorning (${study.patient_name || ''}) kompyuterdagi ZIP arxivi o'chiriladi va diskdan joy bo'shatiladi.\n(KT apparatidagi yoki Telegramdagi nusxasi saqlanib qoladi). Tasdiqlaysizmi?`,
+        confirmText: "Diskdan o'chirish",
+        onConfirm: async () => {
+            try {
+                const res = await fetch(`/api/studies/${id}/delete_local`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    showDialog({
+                        title: "Tozalandi",
+                        message: `✅ ${study.patient_name} fayllari serverdan o'chirildi! (${data.freed_mb || 0} MB bo'shatildi)`
+                    });
+                    await loadStudies();
+                } else {
+                    showDialog({ title: "Xatolik", message: data.detail || "O'chirib bo'lmadi" });
+                }
+            } catch (err) {
+                showDialog({ title: "Tarmoq xatosi", message: err.toString() });
+            }
+        }
+    });
+}
+
+// Tanlangan bemorlarning kompyuterdagi ZIP arxivlarini ommaviy o'chirish
+async function deleteSelectedLocalStorage() {
+    if (selectedStudyIds.size === 0) return;
+
+    showDialog({
+        title: "Tanlanganlarni serverdan tozalash",
+        message: `${selectedStudyIds.size} ta tekshiruvning kompyuterdagi mahalliy ZIP arxivi o'chiriladi va diskdan joy bo'shatiladi. Tasdiqlaysizmi?`,
+        confirmText: "Barchasini tozalash",
+        onConfirm: async () => {
+            try {
+                const res = await fetch('/api/studies/batch_delete_local', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ study_ids: Array.from(selectedStudyIds) })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showDialog({
+                        title: "Tozalandi",
+                        message: `✅ ${data.deleted_count} ta tekshiruv server diskidan tozalandi! (${data.freed_mb || 0} MB bo'shatildi)`
+                    });
+                    selectedStudyIds.clear();
+                    const master = document.getElementById('select-all-studies');
+                    if (master) master.checked = false;
+                    updateSelectedCount();
+                    await loadStudies();
+                } else {
+                    showDialog({ title: "Xatolik", message: data.detail || "Tozalab bo'lmadi" });
+                }
+            } catch (err) {
+                showDialog({ title: "Tarmoq xatosi", message: err.toString() });
+            }
+        }
+    });
+}
+
+// Telegram kanalidan ZIP arxivni kompyuterga qayta yuklab olish
+async function downloadFromTelegram(id) {
+    const study = allStudies.find(s => s.id === id);
+    if (!study) return;
+
+    showDialog({
+        title: "Telegramdan yuklab olish",
+        message: `Ushbu tekshiruv (${study.patient_name || ''}) Telegram kanalidan kompyuterga qayta yuklab olinadi va arxivlanadi. Boshlaysizmi?`,
+        confirmText: "Yuklab olish",
+        onConfirm: async () => {
+            try {
+                study.active_stage = 'DOWNLOADING_TG';
+                study.active_percent = 5;
+                study.active_text = 'Telegramdan olinmoqda...';
+                renderStudiesTable();
+
+                const res = await fetch(`/api/studies/${id}/download_from_telegram`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    checkActiveProgresses();
+                } else {
+                    showDialog({ title: "Xatolik", message: data.detail || "Yuklab bo'lmadi" });
+                }
+            } catch (err) {
+                showDialog({ title: "Tarmoq xatosi", message: err.toString() });
+            }
+        }
+    });
+}
+
+// DICOM Import Modal boshqaruvi
+let currentImportTab = 'zip';
+
+function openImportModal() {
+    const modal = document.getElementById('import-modal');
+    if (modal) modal.style.display = 'flex';
+    switchImportTab('zip');
+    const pArea = document.getElementById('import-progress-area');
+    if (pArea) pArea.style.display = 'none';
+    const subBtn = document.getElementById('btn-submit-import');
+    if (subBtn) subBtn.disabled = false;
+}
+
+function closeImportModal() {
+    const modal = document.getElementById('import-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function switchImportTab(tab) {
+    currentImportTab = tab;
+    const btnZip = document.getElementById('import-tab-zip-btn');
+    const btnFolder = document.getElementById('import-tab-folder-btn');
+    const panelZip = document.getElementById('import-panel-zip');
+    const panelFolder = document.getElementById('import-panel-folder');
+
+    if (tab === 'zip') {
+        if (btnZip) btnZip.classList.add('active');
+        if (btnFolder) btnFolder.classList.remove('active');
+        if (panelZip) panelZip.style.display = 'block';
+        if (panelFolder) panelFolder.style.display = 'none';
+    } else {
+        if (btnFolder) btnFolder.classList.add('active');
+        if (btnZip) btnZip.classList.remove('active');
+        if (panelFolder) panelFolder.style.display = 'block';
+        if (panelZip) panelZip.style.display = 'none';
+    }
+}
+
+async function startDicomImport() {
+    const sendToCt = document.getElementById('import-send-to-ct')?.checked ?? true;
+    const pArea = document.getElementById('import-progress-area');
+    const pBar = document.getElementById('import-progress-bar');
+    const pText = document.getElementById('import-status-text');
+    const pPct = document.getElementById('import-percent-text');
+    const subBtn = document.getElementById('btn-submit-import');
+
+    const formData = new FormData();
+    formData.append('send_to_ct', sendToCt);
+
+    let apiUrl = '';
+    if (currentImportTab === 'zip') {
+        const fileInput = document.getElementById('import-input-zip');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            showDialog({ title: "Fayl tanlanmagan", message: "Iltimos, DICOM fayllar joylashgan .ZIP faylni tanlang!" });
+            return;
+        }
+        formData.append('file', fileInput.files[0]);
+        apiUrl = '/api/import/zip';
+    } else {
+        const folderInput = document.getElementById('import-input-folder');
+        if (!folderInput || !folderInput.files || folderInput.files.length === 0) {
+            showDialog({ title: "Papka tanlanmagan", message: "Iltimos, DICOM fayllar mavjud bo'lgan papkani tanlang!" });
+            return;
+        }
+        for (let i = 0; i < folderInput.files.length; i++) {
+            formData.append('files', folderInput.files[i]);
+        }
+        apiUrl = '/api/import/files';
+    }
+
+    if (pArea) pArea.style.display = 'flex';
+    if (subBtn) subBtn.disabled = true;
+    if (pText) pText.innerText = "Serverga yuklanmoqda...";
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', apiUrl, true);
+
+    xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            if (pBar) pBar.style.width = pct + '%';
+            if (pPct) pPct.innerText = pct + '%';
+            if (pct >= 100 && pText) {
+                pText.innerText = sendToCt 
+                    ? "Fayllar qayta ishlanmoqda va KT apparatiga (C-STORE) uzatilmoqda..." 
+                    : "Fayllar arxivlanmoqda...";
+            }
+        }
+    };
+
+    xhr.onload = async () => {
+        if (xhr.status === 200) {
+            try {
+                const res = JSON.parse(xhr.responseText);
+                closeImportModal();
+                let summaryMsg = `✅ ${res.count || 0} ta tekshiruv muvaffaqiyatli import qilindi va mahalliy arxivlandi!`;
+                if (res.results && res.results.length > 0) {
+                    const r = res.results[0];
+                    if (r.sent_to_ct) {
+                        summaryMsg += `\n📡 GE KT apparatiga: ${r.ct_sent}/${r.instances_count} kadr uzatildi.`;
+                    }
+                }
+                showDialog({ title: "Import yakunlandi", message: summaryMsg });
+                await loadStudies();
+            } catch (err) {
+                showDialog({ title: "Natija xatosi", message: err.toString() });
+            }
+        } else {
+            let errMsg = "Importda xatolik yuz berdi";
+            try {
+                const errJson = JSON.parse(xhr.responseText);
+                if (errJson.detail) errMsg = errJson.detail;
+            } catch (e) {}
+            showDialog({ title: "Import xatoligi", message: errMsg });
+        }
+        if (subBtn) subBtn.disabled = false;
+        if (pArea) pArea.style.display = 'none';
+    };
+
+    xhr.onerror = () => {
+        showDialog({ title: "Tarmoq xatosi", message: "Serverga yuklashda tarmoq xatosi yuz berdi." });
+        if (subBtn) subBtn.disabled = false;
+        if (pArea) pArea.style.display = 'none';
+    };
+
+    xhr.send(formData);
 }
 
 // RadiAnt'da ochish

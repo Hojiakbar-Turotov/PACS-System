@@ -6,7 +6,8 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 
 import time
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+import tempfile
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -261,6 +262,159 @@ def batch_archive_studies(req: BatchResendRequest):
 def archive_all_ct_studies():
     count = batch_manager.enqueue_archive_all_ct()
     return {"status": "started", "count": count}
+
+@app.post("/api/queue/cancel_all")
+def cancel_all_queue():
+    batch_manager.cancel_all()
+    return {"status": "ok", "message": "Barcha faol jarayonlar to'xtatildi va navbat tozalandi"}
+
+@app.post("/api/studies/{study_id}/delete_local")
+@app.delete("/api/studies/{study_id}/local_storage")
+def delete_study_local_storage(study_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM studies WHERE id = ?", (study_id,))
+    study = cursor.fetchone()
+    conn.close()
+
+    if not study:
+        raise HTTPException(status_code=404, detail="Tekshiruv topilmadi")
+
+    freed_bytes = 0
+    if study["archive_path"]:
+        zp = Path(study["archive_path"])
+        if zp.exists():
+            freed_bytes += zp.stat().st_size
+            try: zp.unlink()
+            except Exception as e: print(f"Arxiv o'chirish xatosi: {e}")
+
+    if study["storage_folder"]:
+        sp = Path(study["storage_folder"])
+        if sp.exists():
+            shutil.rmtree(sp, ignore_errors=True)
+
+    from core.database import DB_LOCK
+    with DB_LOCK:
+        conn = get_connection()
+        conn.execute("""
+            UPDATE studies SET
+                local_copy_status = 'NOT_DOWNLOADED',
+                archive_path = '',
+                archive_size_bytes = 0,
+                storage_folder = '',
+                local_stored_at = NULL
+            WHERE id = ?
+        """, (study_id,))
+        conn.commit()
+        conn.close()
+
+    freed_mb = round(freed_bytes / (1024 * 1024), 1)
+    log_event("INFO", f"🗑️ Serverdan mahalliy fayllar tozalandi: {study['patient_name']} ({freed_mb} MB bo'shatildi)")
+    return {"status": "ok", "freed_mb": freed_mb, "message": f"{freed_mb} MB disk joyi bo'shatildi"}
+
+@app.post("/api/studies/batch_delete_local")
+def batch_delete_local_storage(req: BatchResendRequest):
+    if not req.study_ids:
+        raise HTTPException(status_code=400, detail="Kamida bitta tekshiruv tanlanishi kerak")
+    
+    total_freed = 0
+    deleted_cnt = 0
+    conn = get_connection()
+    cursor = conn.cursor()
+    placeholders = ",".join("?" for _ in req.study_ids)
+    cursor.execute(f"SELECT * FROM studies WHERE id IN ({placeholders})", req.study_ids)
+    studies = cursor.fetchall()
+    conn.close()
+
+    from core.database import DB_LOCK
+    with DB_LOCK:
+        conn = get_connection()
+        for s in studies:
+            sid = s["id"]
+            if s["archive_path"]:
+                zp = Path(s["archive_path"])
+                if zp.exists():
+                    total_freed += zp.stat().st_size
+                    try: zp.unlink()
+                    except: pass
+            if s["storage_folder"]:
+                sp = Path(s["storage_folder"])
+                if sp.exists():
+                    shutil.rmtree(sp, ignore_errors=True)
+            
+            conn.execute("""
+                UPDATE studies SET
+                    local_copy_status = 'NOT_DOWNLOADED',
+                    archive_path = '',
+                    archive_size_bytes = 0,
+                    storage_folder = '',
+                    local_stored_at = NULL
+                WHERE id = ?
+            """, (sid,))
+            deleted_cnt += 1
+        conn.commit()
+        conn.close()
+
+    freed_mb = round(total_freed / (1024 * 1024), 1)
+    log_event("INFO", f"🗑️ Ommaviy tozalash: {deleted_cnt} ta tekshiruv server diskidan o'chirildi ({freed_mb} MB bo'shatildi)")
+    return {"status": "ok", "deleted_count": deleted_cnt, "freed_mb": freed_mb}
+
+@app.post("/api/studies/{study_id}/download_from_telegram")
+def download_from_telegram_endpoint(study_id: int, background_tasks: BackgroundTasks):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM studies WHERE id = ?", (study_id,))
+    study = cursor.fetchone()
+    conn.close()
+
+    if not study:
+        raise HTTPException(status_code=404, detail="Tekshiruv topilmadi")
+
+    if not study["telegram_message_id"]:
+        raise HTTPException(status_code=400, detail="Ushbu tekshiruv Telegramga yuborilmagan yoki xabar ID si topilmadi")
+
+    from telegram.dispatcher import download_study_from_telegram
+    from core.progress_tracker import update_progress
+    update_progress(study_id, "DOWNLOADING_TG", 5, "Telegramdan yuklab olish boshlandi...", force_db=True)
+    
+    background_tasks.add_task(download_study_from_telegram, study_id)
+    return {"status": "started", "message": "Telegramdan yuklab olish boshlandi"}
+
+@app.post("/api/import/zip")
+async def import_zip_endpoint(
+    file: UploadFile = File(...),
+    send_to_ct: bool = Form(True)
+):
+    from core.importer import import_from_zip
+    temp_zip = Path(tempfile.mkdtemp(prefix="dicom_zip_upload_")) / file.filename
+    try:
+        with open(temp_zip, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        results = import_from_zip(temp_zip, send_to_ct=send_to_ct)
+        return {"status": "ok", "results": results, "count": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"ZIP import xatosi: {e}")
+    finally:
+        shutil.rmtree(temp_zip.parent, ignore_errors=True)
+
+@app.post("/api/import/files")
+async def import_files_endpoint(
+    files: list[UploadFile] = File(...),
+    send_to_ct: bool = Form(True)
+):
+    from core.importer import process_imported_dicom_dir
+    temp_dir = Path(tempfile.mkdtemp(prefix="dicom_files_upload_"))
+    try:
+        for f in files:
+            dest_file = temp_dir / Path(f.filename.replace('/', os.sep).replace('\\', os.sep)).name
+            with open(dest_file, "wb") as buffer:
+                shutil.copyfileobj(f.file, buffer)
+        results = process_imported_dicom_dir(temp_dir, send_to_ct=send_to_ct)
+        return {"status": "ok", "results": results, "count": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DICOM fayllar import xatosi: {e}")
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 @app.post("/api/studies/{study_id}/download_to_server")
 def download_study_to_server(study_id: int, background_tasks: BackgroundTasks):

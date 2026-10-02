@@ -159,3 +159,35 @@ def get_study_progress(study_id: int) -> Optional[Dict[str, Any]]:
 def get_all_active_progress() -> Dict[int, Dict[str, Any]]:
     with _lock:
         return dict(_active_progress)
+
+def clear_all_progress():
+    """Barcha faol jarayonlarni xotiradan va bazadan tozalash"""
+    with _lock:
+        _active_progress.clear()
+        _ct_download_metrics.clear()
+        _uid_to_id.clear()
+        _last_db_save.clear()
+
+    from core.database import DB_LOCK
+    with DB_LOCK:
+        try:
+            conn = get_connection()
+            conn.execute("""
+                UPDATE studies SET
+                    progress_stage = 'IDLE',
+                    progress_percent = 0,
+                    progress_text = ''
+                WHERE progress_stage != 'IDLE'
+            """)
+            conn.execute("""
+                UPDATE studies SET
+                    telegram_status = CASE 
+                        WHEN archive_path IS NOT NULL AND archive_path != '' THEN 'PENDING'
+                        ELSE 'ON_CT_DEVICE'
+                    END
+                WHERE telegram_status IN ('SENDING', 'RETRIEVING')
+            """)
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass

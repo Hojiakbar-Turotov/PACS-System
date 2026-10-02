@@ -17,6 +17,7 @@ from core.config import (
     TELEGRAM_API_ID,
     TELEGRAM_API_HASH,
     TELEGRAM_STRING_SESSION,
+    ARCHIVES_DIR,
 )
 from core.database import get_connection, log_event, DB_LOCK
 
@@ -282,3 +283,113 @@ def send_study_to_telegram(
         except Exception:
             pass
         return False
+
+async def _download_from_tg_async(study_id: int) -> bool:
+    """Telegram kanalidagi xabardan ZIP arxivni qayta yuklab olish"""
+    with DB_LOCK:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM studies WHERE id = ?", (study_id,))
+        study = cursor.fetchone()
+        conn.close()
+
+    if not study or not study["telegram_message_id"]:
+        raise ValueError("Tekshiruvning Telegram xabari ID si topilmadi")
+
+    message_id = int(study["telegram_message_id"])
+    patient_name = study["patient_name"] or "Unknown"
+    date_folder = datetime.now().strftime("%Y-%m-%d")
+    target_dir = ARCHIVES_DIR / date_folder
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    client = TelegramClient(StringSession(TELEGRAM_STRING_SESSION), TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    await client.connect()
+    try:
+        channel_peer = int(TELEGRAM_CHANNEL_ID)
+        msg = await client.get_messages(channel_peer, ids=message_id)
+        if not msg or not msg.media:
+            raise RuntimeError(f"Telegram kanalida {message_id}-xabar yoki media fayl topilmadi")
+
+        filename = getattr(msg.file, 'name', None) or f"{patient_name}_{study_id}.zip"
+        target_path = target_dir / filename
+
+        start_time = time.time()
+        last_time = [start_time]
+        last_bytes = [0]
+        speed_mb_s = [0.0]
+
+        def progress_cb(current, total):
+            if not total: return
+            now_t = time.time()
+            dt = now_t - last_time[0]
+            if dt >= 0.5 or current == total:
+                d_bytes = current - last_bytes[0]
+                if dt > 0:
+                    speed_mb_s[0] = round((d_bytes / (1024 * 1024)) / dt, 1)
+                last_time[0] = now_t
+                last_bytes[0] = current
+
+            pct = int((current / total) * 100)
+            cur_mb = round(current / (1024 * 1024), 1)
+            tot_mb = round(total / (1024 * 1024), 1)
+            sp_str = f" • ⚡ {speed_mb_s[0]} MB/s" if speed_mb_s[0] > 0 else ""
+            
+            try:
+                from core.progress_tracker import update_progress
+                update_progress(
+                    study_id=study_id,
+                    stage="DOWNLOADING_TG",
+                    percent=pct,
+                    text=f"Telegramdan: {pct}% ({cur_mb}/{tot_mb} MB){sp_str}",
+                    current=current,
+                    total=total,
+                    speed=f"{speed_mb_s[0]} MB/s"
+                )
+            except Exception:
+                pass
+
+        await client.download_media(msg, file=str(target_path), progress_callback=progress_cb)
+
+        file_size = target_path.stat().st_size
+        now_iso = datetime.now().isoformat()
+        with DB_LOCK:
+            conn = get_connection()
+            conn.execute("""
+                UPDATE studies SET
+                    archive_path = ?,
+                    archive_size_bytes = ?,
+                    local_copy_status = 'STORED',
+                    local_stored_at = ?,
+                    progress_stage = 'IDLE',
+                    progress_percent = 100,
+                    progress_text = ''
+                WHERE id = ?
+            """, (str(target_path), file_size, now_iso, study_id))
+            conn.commit()
+            conn.close()
+
+        try:
+            from core.progress_tracker import mark_completed
+            mark_completed(study_id, success=True)
+        except Exception:
+            pass
+
+        log_event("INFO", f"📥 Telegramdan muvaffaqiyatli yuklab olindi: {filename} ({round(file_size/1024/1024, 1)} MB)")
+        return True
+    except Exception as e:
+        logger.error(f"Telegramdan yuklab olish xatosi: {e}", exc_info=True)
+        log_event("ERROR", f"Telegramdan yuklab olish xatosi [{patient_name}]: {e}")
+        try:
+            from core.progress_tracker import mark_completed
+            mark_completed(study_id, success=False, error_msg=str(e))
+        except Exception:
+            pass
+        return False
+    finally:
+        await client.disconnect()
+
+def download_study_from_telegram(study_id: int):
+    """Sinxron oqim orqali chaqiriluvchi Telegram yuklash funksiyasi"""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(asyncio.run, _download_from_tg_async(study_id))
+        return future.result()

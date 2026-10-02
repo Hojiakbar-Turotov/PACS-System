@@ -350,5 +350,23 @@ D:\PACS\
      - `🗜️ Barcha KT ni arxivlash`: KT apparatidagi barcha 727+ bemorlarni fonda parallel navbat bilan yuklab olib, ZIP holida saqlaydi.
    - O'chirilgan xatoliklar holati (FAILED bo'lgan 13 ta bemor) qayta tozalab, foydalanishga shay holatga keltirildi.
 
+### 7.11. Jarayonlarni Bekor Qilish, Mahalliy Diskni Tozalash, Telegramdan Qayta Yuklash va KT Qurilmaga DICOM Import
+1. **Barcha Amallarni To'xtatish va Bekor Qilish (Cancel & Reset Queue):**
+   - Veb-panel sarlavhasiga qizil `🛑 Bekor qilish` tugmasi qo'shildi.
+   - Barcha faol jarayonlarni (C-MOVE, ZIP siqish, Telegram yuklash) bir zumda to'xtatadi, navbatni tozalaydi va qotib qolgan statuslarni `IDLE` ga qaytaradi (`clear_all_progress()`).
+2. **Server Xotirasini Qo'lda Tozalash (Delete Local Storage):**
+   - Foydalanuvchi xohlagan tekshiruvning kompyuterdagi ZIP arxivini `🗑️ O'chirish` tugmasi orqali o'chirib, diskdan joy bo'shata oladi.
+   - Tanlangan bemorlar uchun ommaviy `🗑️ Diskdan tozalash` tugmasi qo'shildi.
+   - O'chirilgach, tekshiruv holati xavfsiz ravishda saqlanadi, qayta yuklab olish imkoni qoladi.
+3. **Telegramda Bor, Ammo Serverda Yo'q Fayllarni Telegramdan Yuklab Olish:**
+   - Serverdan o'chirilgan yoki yangi kompyuterga o'tkazilganda Telegram kanaliga yuborilgan bemorlar uchun `📥 Telegramdan olish` tugmasi joriy etildi.
+   - Telethon MTProto orqali kanalning o'zidan to'liq ZIP arxiv kompyuterga qayta yuklab olinadi va RadiAnt'da ochish uchun tayyorlanadi.
+4. **Apparatda Yo'q Tekshiruvlarni GE KT Qurilmasiga Import Qilish (ZIP va Papka):**
+   - Veb-panelda binafsharang `📤 DICOM Import (KT ga)` moduli yaratildi.
+   - Ikkita usul qo'llab-quvvatlanadi:
+     - 🗜️ **ZIP Arxiv yuklash**: ichidagi barcha DICOM fayllar avtomatik ochiladi;
+     - 📁 **Papka yuklash**: kompyuterdagi DICOM papkasini butunicha tanlash.
+   - DICOM fayllar metama'lumotlari (`PatientName`, `PatientID`, `StudyUID`) o'qilib, mahalliy arxivlanadi va `StoragePresentationContexts` (C-STORE SCU) orqali to'g'ridan-to'g'ri GE KT apparatiga (`192.168.10.250:4006`, AE: `CT01`) uzatiladi.
+
 
 
