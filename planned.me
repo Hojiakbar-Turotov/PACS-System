@@ -411,3 +411,16 @@ D:\PACS\
    - Tanlangan sana filtri (`Bugun`, `Kecha`, `Aniq sana` va h.k.), saralash va sahifa hajmi sozlamalari brauzer `localStorage` xotirasiga avtomatik saqlanadi. Foydalanuvchi tizimdan chiqib ketib qayta kirganda ham aynan oxirgi belgilangan sana ("Bugun") avtomatik ravishda ochiladi.
    - Mahalliy vaqt mintaqasi (Asia/Tashkent) bo'yicha sanani hisoblash aniqlashtirildi (UTC ofset chalkashliklari bartaraf etildi).
 
+10. **Yangi Bemorlarni Avtomatik Telegramga Arxivlash va Navbat Integratsiyasi (03.10.2026):**
+   - **Muammo tahlili:** KT apparatida tekshirilgan yangi bemor (`test`, ID: 737, 147 kadr) rekonstruksiyasi to'liq tugab, diskda ZIP arxiv yaratilgan bo'lsa-da, avtomatik ravishda Telegramga yuborilmasdan `⏳ Kutilmoqda` (`PENDING`) holatida to'xtab qolgan edi.
+   - **Sabablari:**
+     1. `core/auto_archive_service.py` da rekonstruksiya barqarorligi (3/3) yakunlangach, `retrieve_study_from_ct(uid, False)` chaqirilgan va `send_telegram=False` argumenti uzatilgan;
+     2. `core/processor.py` da `get_retrieval_intent` sukut bo'yicha `False` qaytarar edi va agar `intent` ko'rsatilmagan bo'lsa, "Faqat serverga arxivlandi" deb hisoblab tekshiruvni `PENDING` holatida qoldirar edi;
+     3. `core/ct_poller.py` da `retrieve_study_from_ct` parametri `send_telegram: bool = False` bo'lib qolgan edi.
+   - **Qilingan tuzatishlar:**
+     1. `core/ct_poller.py`: `retrieve_study_from_ct` uchun sukut bo'yicha `send_telegram: bool = True` qilib belgilandi.
+     2. `core/auto_archive_service.py`: Rekonstruksiya to'liq tugashi bilan (`prev["stable_rounds"] >= required_stability_rounds`) va 3-soatlik chuqur tekshiruvda yangi kadrlarni topganda to'g'ridan-to'g'ri `batch_manager.enqueue_studies([s_row["id"]])` ga uzatish yo'lga qo'yildi.
+     3. `core/processor.py`: `get_retrieval_intent` intilishi `None` (aniqlanmagan/avtomatik), `True` (foydalanuvchi Telegramni tanlagan) va `False` (foydalanuvchi qasddan faqat serverga arxivlashni tanlagan) holatlariga ajratildi. Agar foydalanuvchi qasddan serverga arxivlashni tanlamagan bo'lsa va `auto_archive_enabled` faol bo'lsa, tekshiruv arxivi tayyor bo'lishi bilanoq darhol `batch_manager.enqueue_single_telegram(study_db_id)` navbatiga qo'shiladi.
+     4. `core/batch_queue.py`: `_worker_ct_download` ishchisida C-MOVE yakunlangach, DICOM debounci (15 soniya) va ZIP arxiv yaratilishi tekshiruv sikli orqali kutiladi. Arxiv to'liq tayyor bo'lgach, tekshiruv Telegram navbatiga (`_tg_queue`) o'tkaziladi.
+     5. Qotib qolgan `test` (ID: 737, 147 kadr) tekshiruvi Telegram navbatiga qo'yilib, yuborilishi ta'minlandi.
+

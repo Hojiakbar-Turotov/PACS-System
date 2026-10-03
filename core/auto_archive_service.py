@@ -156,9 +156,15 @@ class AutoArchiveDaemon:
 
                             if prev["stable_rounds"] >= required_stability_rounds:
                                 # 3 marta o'zgarmadi -> Rekon to'liq tugagan!
-                                log_event("INFO", f"✅ Rekonstruksiya to'liq yakunlandi: {name} ({inst_cnt} kadr). Avtomatik yuklab olish va arxivlash boshlandi!")
+                                log_event("INFO", f"✅ Rekonstruksiya to'liq yakunlandi: {name} ({inst_cnt} kadr). Avtomatik navbatga qo'yildi va Telegramga arxivlanmoqda!")
                                 del self.stability_tracker[uid]
-                                threading.Thread(target=retrieve_study_from_ct, args=(uid, False), daemon=True).start()
+                                cursor.execute("SELECT id FROM studies WHERE study_instance_uid = ?", (uid,))
+                                s_row = cursor.fetchone()
+                                if s_row:
+                                    from core.batch_queue import batch_manager
+                                    batch_manager.enqueue_studies([s_row["id"]])
+                                else:
+                                    threading.Thread(target=retrieve_study_from_ct, args=(uid, True), daemon=True).start()
 
         conn.close()
 
@@ -209,9 +215,10 @@ class AutoArchiveDaemon:
                         log_event("INFO", f"🔄 [QAYTA ARXIVLASH] Bemor {name} kadrlar soni oshgan ({local_inst} -> {ct_inst} kadr). Qayta yuklanmoqda...")
                         cursor.execute("UPDATE studies SET instances_count = ? WHERE study_instance_uid = ?", (ct_inst, uid))
                         conn.commit()
-                        # Yangilangan kadrlar bilan qayta yuklab arxivlash (faqat serverga)
-                        retrieve_study_from_ct(uid, send_telegram=False)
-                        time.sleep(4)
+                        # Yangilangan kadrlar bilan qayta yuklab arxivlash va Telegramga uzatish
+                        from core.batch_queue import batch_manager
+                        batch_manager.enqueue_studies([row["id"]])
+                        time.sleep(1)
 
             conn.close()
             log_event("INFO", f"✅ [3-SOATLIK TEKSHIRUV] Tugallandi. {len(ct_items)} ta tekshiruv ko'rildi, {updated_count} ta yangilangan tekshiruv qayta arxivlandi.")

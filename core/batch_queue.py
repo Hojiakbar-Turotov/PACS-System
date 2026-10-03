@@ -303,24 +303,30 @@ class BatchQueueManager:
 
             update_progress(sid, "DOWNLOADING_CT", 1, f"KT apparatidan so'ralmoqda [{pname}]...", force_db=True)
             
-            # send_telegram=False beramiz, chunki keyingi bosqichni batch pipeline boshqaradi
-            success = retrieve_study_from_ct(uid, send_telegram=False)
+            send_tg = item.get("send_telegram", True)
+            success = retrieve_study_from_ct(uid, send_telegram=send_tg)
 
             if self._cancel_flag.is_set():
                 return
 
-            # Yangilangan arxiv ma'lumotlarini bazadan olish
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute("SELECT archive_path, instances_count FROM studies WHERE id = ?", (sid,))
-            updated_row = c.fetchone()
-            conn.close()
+            # C-MOVE tugagach, DicomEngine debounci (15s) va processor ZIP arxiv yaratishini kutamiz (maksimal 45s)
+            archived = False
+            for _ in range(45):
+                time.sleep(1)
+                if self._cancel_flag.is_set():
+                    return
+                conn = get_connection()
+                c = conn.cursor()
+                c.execute("SELECT archive_path, instances_count, local_copy_status FROM studies WHERE id = ?", (sid,))
+                row = c.fetchone()
+                conn.close()
+                if row and row["local_copy_status"] == 'STORED' and row["archive_path"] and Path(row["archive_path"]).exists():
+                    item["archive_path"] = row["archive_path"]
+                    item["slices"] = row["instances_count"] or item["slices"]
+                    archived = True
+                    break
 
-            if updated_row and updated_row["archive_path"]:
-                item["archive_path"] = updated_row["archive_path"]
-                item["slices"] = updated_row["instances_count"] or item["slices"]
-
-            if item["send_telegram"]:
+            if send_tg:
                 # Telegramga yuborilishi kerak bo'lsa, Telegram navbatiga uzatamiz
                 with self.lock:
                     self._tg_queue.append(item)

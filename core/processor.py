@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 import pydicom
 
-from core.config import ARCHIVES_DIR
+from core.config import ARCHIVES_DIR, load_settings
 from core.database import get_connection, log_event
 from telegram.dispatcher import send_study_to_telegram
 
@@ -79,8 +79,9 @@ _retrieval_intents = {}
 def set_retrieval_intent(study_uid: str, send_telegram: bool):
     _retrieval_intents[study_uid] = send_telegram
 
-def get_retrieval_intent(study_uid: str) -> bool:
-    return _retrieval_intents.pop(study_uid, False)
+def get_retrieval_intent(study_uid: str):
+    """Qaytaradi: True (Telegramga), False (faqat serverga), None (avtomatik)"""
+    return _retrieval_intents.pop(study_uid, None)
 
 def process_completed_study(study_uid, study_dir: Path, patient_id, patient_name, study_desc, study_date, modality):
     """Tekshiruv qabul qilib bo'lingach chaqiriladigan asosiy funksiya"""
@@ -185,18 +186,21 @@ def process_completed_study(study_uid, study_dir: Path, patient_id, patient_name
         log_event("INFO", f"Arxiv tayyor: {zip_filename} ({round(zip_size / 1024 / 1024, 1)} MB, {slices_count} ta kadr)")
         
         # 4. Telegramga yuborish yoki faqat serverda qoldirish
-        should_send_tg = get_retrieval_intent(study_uid)
+        intent = get_retrieval_intent(study_uid)
+        cfg = load_settings()
+        auto_archive = cfg.get("auto_archive_enabled", True)
+        
+        # Agar qasddan serverga arxivlash bo'lsa (intent is False), Telegramga yubormaymiz.
+        # Boshqa barcha hollarda (intent is True yoki avtomatik yangi kelgan tekshiruvlar) Telegram navbatiga qo'yiladi.
+        should_send_tg = (intent is True) or (intent is None and auto_archive)
+        
         if should_send_tg:
-            send_study_to_telegram(
-                study_id=study_db_id,
-                patient_name=patient_name,
-                patient_id=patient_id,
-                study_desc=study_desc,
-                study_date=study_date,
-                slices_count=slices_count,
-                zip_path=zip_path,
-                is_update=is_update
-            )
+            from core.batch_queue import batch_manager
+            if not batch_manager._is_already_queued(study_db_id):
+                log_event("INFO", f"📤 Avtomatik Telegram navbatiga qo'shildi: {patient_name} [{slices_count} kadr]")
+                batch_manager.enqueue_single_telegram(study_db_id)
+            else:
+                log_event("INFO", f"📦 Tekshiruv tayyor va faol navbatda kutmoqda: {patient_name} [{slices_count} kadr]")
         else:
             log_event("INFO", f"💾 Faqat serverga arxivlandi: {patient_name} [{slices_count} kadr]")
             with DB_LOCK:
