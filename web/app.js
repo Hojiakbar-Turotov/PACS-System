@@ -1441,6 +1441,11 @@ async function openInRadiAnt(id) {
                 title: "RadiAnt xabari",
                 message: data.detail || "Fayllar topilmadi. Avval '📥 Serverga' tugmasi orqali yuklab oling."
             });
+        } else if (data.status === 'fetching') {
+            showDialog({
+                title: "KT dan olinmoqda",
+                message: data.message || "Tekshiruv KT apparatidan yuklanmoqda. Bir ozdan so'ng ochiladi."
+            });
         }
     } catch (err) {
         showDialog({ title: "RadiAnt xatosi", message: err.toString() });

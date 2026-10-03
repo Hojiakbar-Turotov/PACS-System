@@ -424,3 +424,26 @@ D:\PACS\
      4. `core/batch_queue.py`: `_worker_ct_download` ishchisida C-MOVE yakunlangach, DICOM debounci (15 soniya) va ZIP arxiv yaratilishi tekshiruv sikli orqali kutiladi. Arxiv to'liq tayyor bo'lgach, tekshiruv Telegram navbatiga (`_tg_queue`) o'tkaziladi.
      5. Qotib qolgan `test` (ID: 737, 147 kadr) tekshiruvi Telegram navbatiga qo'yilib, yuborilishi ta'minlandi.
 
+### 7.13. RadiAnt DICOM Viewer Q/R (Query & Retrieve) To'liq Integratsiyasi va Qora Ekranni Tuzatish (03.10.2026):
+1. **Muammo tahlili:**
+   - Shifokor kompyuterda RadiAnt dasturini ochib, PACS tugmasi (Ctrl+F) orqali bemorlarni qidirish va yuklab olishga uringanda, qora ekran chiqib bemor kadrlari yuklanmasdan qolgan edi.
+   - Veb-paneldagi "👁️ RadiAnt da ochish" tugmasi bosilganda esa dastur bir necha soniyada o'z-o'zidan yopilib ketayotgan yoki DLL xatosi yuzaga kelayotgan edi.
+2. **Sabablari:**
+   - RadiAnt konfiguratsiyasida (pacs.xml) `<listener filter="3" />` o'rnatilgan bo'lib, RadiAnt faqat o'zi C-MOVE so'ragan hostlardan tasvir qabul qilishi belgilangan va lokal 127.0.0.1 ulanishlarini rad etgan.
+   - PACS serverda (core/dicom_engine.py) C-MOVE va C-GET hodisalari (EVT_C_MOVE, EVT_C_GET) umuman ro'yxatdan o'tmagan va ishlov beruvchi yo'q edi.
+   - handle_find funksiyasida sqlite3.Row obyektiga .get('birth_date') chaqirilgani sababli birinchi bemorning o'zidayoq AttributeError xatosi bilan qidiruv yiqilgan.
+   - RadiAntViewer.exe o'zining ishchi katalogisiz (cwd) chaqirilganda zip.dll, gpuengine.dll va cudart64_101.dll kutubxonalarini topolmay qulagan.
+   - GE KT apparatidan RadiAnt orqali so'ralgan tasvirlar 11112 portga kelgan, ammo RadiAnt 11113 portda kutib turgani sababli tasvirlar RadiAntga o'tmagan.
+3. **Qilingan tuzatishlar:**
+   - C:\Users\HOME\AppData\Roaming\RadiantViewer\pacs.xml:
+     - `<listener ae="RADIANT" port="11113" filter="0" llock="0" />` qilindi (filter="0" — barcha kiruvchi C-STORE kadrlarni qabul qilish).
+     - Asosiy qidiruv va yuklab olish xosti sifatida `<host name="Sabadarmon PACS" ae="RADIANT" ip="127.0.0.1" port="11112" search="1" protocol="1" />` sozlangan.
+   - core/dicom_engine.py:
+     - PatientRootQueryRetrieveInformationModelMove, StudyRootQueryRetrieveInformationModelMove, Get modellarining barchasi qo'shildi.
+     - handle_find so'rovi s = dict(s_row) orqali xavfsiz holatga keltirildi, taglar to'liq tekshirildi (200 ta bemor bir zumda topiladi).
+     - handle_move funksiyasi to'liq joriy etildi: ZIP arxivdan, storage papkasidan yoki bevosita GE KT apparatidan yuklab olib, RadiAnt portiga (127.0.0.1:11113) StoragePresentationContexts sub-assotsiatsiyasi orqali barcha kadrlarni to'liq uzatib beradi (556 kadr muvaffaqiyatli sinovdan o'tkazildi).
+     - RadiantForwarder oqimi yaratildi: GE KT apparati yoki tarmoqdan PACS ga tushayotgan har bir kadr, agar RadiAnt 11113 portda ochiq bo'lsa, navbat (Queue) orqali bitta mustahkam assotsiatsiya bilan real vaqt rejimida RadiAntga ham jonli uzatiladi.
+   - core/main.py va web/app.js:
+     - open_in_radiant API si cwd=C:\App\RadiAntViewer, -d <target_dir> va subprocess.DETACHED_PROCESS bilan mustaqil ishga tushirildi.
+     - ZIP arxivlar storage/ papkasiga tezkor ochilib, RadiAntda 0.1 soniyada ochilishi ta'minlandi.
+

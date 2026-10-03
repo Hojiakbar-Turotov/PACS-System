@@ -7,13 +7,14 @@ from contextlib import asynccontextmanager
 
 import time
 import tempfile
+import threading
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from core.config import (
-    BASE_DIR, WEB_DIR, RADIANT_EXE,
+    BASE_DIR, WEB_DIR, STORAGE_DIR, RADIANT_EXE,
     CT_HOST, CT_PORT, CT_AET,
     load_settings, save_settings
 )
@@ -412,7 +413,7 @@ def download_study_to_server(study_id: int):
 def open_in_radiant(study_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT storage_folder, archive_path, patient_name FROM studies WHERE id = ?", (study_id,))
+    cursor.execute("SELECT storage_folder, archive_path, study_instance_uid, patient_name FROM studies WHERE id = ?", (study_id,))
     row = cursor.fetchone()
     conn.close()
     
@@ -423,21 +424,40 @@ def open_in_radiant(study_id: int):
     if not radiant_exe.exists():
         raise HTTPException(status_code=500, detail=f"RadiAntViewer dasturi topilmadi: {RADIANT_EXE}")
         
-    target_path = None
-    if row["archive_path"] and Path(row["archive_path"]).exists():
-        target_path = Path(row["archive_path"])
-    elif row["storage_folder"] and Path(row["storage_folder"]).exists():
-        target_path = Path(row["storage_folder"])
-        
-    if not target_path:
+    target_dir = None
+    if row["storage_folder"] and Path(row["storage_folder"]).exists() and any(Path(row["storage_folder"]).glob("*.dcm")):
+        target_dir = Path(row["storage_folder"])
+    elif row["archive_path"] and Path(row["archive_path"]).exists():
+        # ZIP arxivni ochib papkaga joylashtirish (RadiAnt darhol ochishi uchun)
+        target_dir = STORAGE_DIR / Path(row["archive_path"]).stem
+        if not target_dir.exists() or not any(target_dir.glob("*.dcm")):
+            import zipfile
+            target_dir.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(row["archive_path"], 'r') as zf:
+                zf.extractall(target_dir)
+                
+    if not target_dir:
+        # Agar lokal diskda bo'lmasa, KT apparatidan darhol yuklab olish
+        study_uid = row["study_instance_uid"]
+        if study_uid:
+            from core.ct_poller import retrieve_study_from_ct
+            threading.Thread(target=retrieve_study_from_ct, args=(study_uid, False), daemon=True).start()
+            return {
+                "status": "fetching",
+                "message": f"{row['patient_name']} tekshiruvi KT apparatidan yuklab olinmoqda. Bir necha soniyadan so'ng avtomatik ochiladi."
+            }
         raise HTTPException(
             status_code=400,
-            detail="Ushbu tekshiruv hozircha faqat KT apparatida saqlanmoqda. Avval uni '📥 Serverga' tugmasi orqali kompyuterga yuklab oling."
+            detail="Ushbu tekshiruv hozircha lokal diskda topilmadi. Avval '📥 Serverga' tugmasi orqali yuklab oling."
         )
         
     try:
-        subprocess.Popen([str(radiant_exe), str(target_path)])
-        return {"status": "opened", "path": str(target_path)}
+        subprocess.Popen(
+            [str(radiant_exe), "-d", str(target_dir)],
+            cwd=str(radiant_exe.parent),
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+        return {"status": "opened", "path": str(target_dir)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"RadiAnt ochishda xatolik: {e}")
 
